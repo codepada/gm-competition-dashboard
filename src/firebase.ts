@@ -42,7 +42,17 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-const missingVariables = requiredEnv.filter((name) => !import.meta.env[name])
+const envValues: Record<(typeof requiredEnv)[number], string | undefined> = {
+  VITE_FIREBASE_API_KEY: firebaseConfig.apiKey,
+  VITE_FIREBASE_AUTH_DOMAIN: firebaseConfig.authDomain,
+  VITE_FIREBASE_DATABASE_URL: firebaseConfig.databaseURL,
+  VITE_FIREBASE_PROJECT_ID: firebaseConfig.projectId,
+  VITE_FIREBASE_STORAGE_BUCKET: firebaseConfig.storageBucket,
+  VITE_FIREBASE_MESSAGING_SENDER_ID: firebaseConfig.messagingSenderId,
+  VITE_FIREBASE_APP_ID: firebaseConfig.appId,
+}
+
+const missingVariables = requiredEnv.filter((name) => !envValues[name])
 export function databasePathForLevel(levelId: CompetitionLevelId) {
   return `competitions/${competitionRoot}/${levelId}`
 }
