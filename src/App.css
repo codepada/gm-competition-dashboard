@@ -347,7 +347,28 @@ textarea {
 
 .card-head {
   display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
   gap: 12px;
+}
+
+.judge-image {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  background: #f5f5f7;
+  color: #64748b;
+  font-weight: 900;
+}
+
+.judge-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .card-round-controls {
@@ -711,6 +732,19 @@ textarea {
   gap: 10px;
   border-top: 1px solid #e2e8f0;
   padding-top: 12px;
+}
+
+.setup-judge-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setup-judge-preview img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .toggle {
@@ -1099,25 +1133,32 @@ textarea {
   }
 
   .card-head {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
     gap: 5px;
   }
 
+  .judge-image {
+    width: 34px;
+    height: 34px;
+    font-size: 12px;
+  }
+
   .card-round-controls {
-    grid-template-columns: minmax(34px, 0.7fr) minmax(44px, 0.9fr) minmax(34px, 0.7fr);
-    gap: 3px;
-    margin-top: 5px;
+    grid-template-columns: minmax(48px, 0.85fr) minmax(58px, 0.9fr) minmax(48px, 0.85fr);
+    gap: 4px;
+    margin-top: 7px;
   }
 
   .card-round-controls label {
     gap: 2px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .card-round-controls button,
   .card-round-controls input {
-    min-height: 28px;
-    padding: 4px 2px;
-    font-size: 9px;
+    min-height: 36px;
+    padding: 5px 2px;
+    font-size: 11px;
   }
 
   .card-head h2 {

@@ -788,6 +788,19 @@ function App() {
     }), 'Category saved')
   }
 
+  function updateGroupImage(groupId: string, imageUrl: string) {
+    updateData((current) => rebuildFromSetup({
+      ...current,
+      judgeGroups: {
+        ...current.judgeGroups,
+        [groupId]: {
+          ...current.judgeGroups[groupId],
+          imageUrl: imageUrl.trim() || undefined,
+        },
+      },
+    }), 'Judge image saved')
+  }
+
   function updateStart(groupId: string, startRunOrder: number) {
     updateData((current) => rebuildFromSetup({
       ...current,
@@ -923,6 +936,7 @@ function App() {
       ) : effectiveRoute === '/dashboard' ? (
         <DashboardPage
           canEdit
+          canReset={isAdmin}
           completedCount={completedCount}
           currentRound={currentRound}
           currentRoundState={currentRoundState}
@@ -966,6 +980,7 @@ function App() {
           onSettingsChange={updateSettingsField}
           onStart={() => navigate('/dashboard')}
           onStartChange={updateStart}
+          onImageChange={updateGroupImage}
         />
       )}
 
@@ -1020,6 +1035,7 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
 
 type DashboardProps = {
   canEdit: boolean
+  canReset: boolean
   completedCount: number
   currentRound: number
   currentRoundState: CompetitionData['rounds'][string]
@@ -1235,7 +1251,9 @@ function DashboardPage(props: DashboardProps) {
           />
           Follow Current Time
         </label>
-        <button type="button" className="danger" disabled={!props.canEdit} onClick={props.onResetRound}>Reset Current Round</button>
+        {props.canReset ? (
+          <button type="button" className="danger" disabled={!props.canEdit} onClick={props.onResetRound}>Reset Current Round</button>
+        ) : null}
       </div>
 
       {completedCount === props.requiredCount ? (
@@ -1257,6 +1275,13 @@ function DashboardPage(props: DashboardProps) {
           return (
             <article className={`judge-card group-${index + 1} ${configured ? status.toLowerCase() : 'not-configured'}`} key={groupId}>
               <div className="card-head">
+                <div className="judge-image" aria-hidden="true">
+                  {data.judgeGroups[groupId].imageUrl ? (
+                    <img src={data.judgeGroups[groupId].imageUrl} alt="" />
+                  ) : (
+                    <span>{index + 1}</span>
+                  )}
+                </div>
                 <div>
                   <span className="label">Judge Group {index + 1}</span>
                   <h2>{data.judgeGroups[groupId].categoryName}</h2>
@@ -1372,6 +1397,7 @@ type SetupProps = {
   onExportJson: () => void
   onExportTeams: () => void
   onGeneratedSchedule: (totalTeams: number) => void
+  onImageChange: (groupId: string, imageUrl: string) => void
   onResetAll: () => void
   onInitializeLevel: () => void
   onSettingsChange: <K extends keyof CompetitionData['settings']>(field: K, value: CompetitionData['settings'][K]) => void
@@ -1382,6 +1408,15 @@ type SetupProps = {
 function SetupPage(props: SetupProps) {
   const { data } = props
   const [teamTotal, setTeamTotal] = useState(Object.keys(data.teams).length)
+
+  function handleImageFile(groupId: string, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => props.onImageChange(groupId, String(reader.result))
+    reader.readAsDataURL(file)
+    event.target.value = ''
+  }
 
   return (
     <section className="page setup-page">
@@ -1404,6 +1439,14 @@ function SetupPage(props: SetupProps) {
             <div className="group-editor" key={groupId}>
               <strong>Judge Group {index + 1}</strong>
               <label>Category<input value={data.judgeGroups[groupId].categoryName} onChange={(event) => props.onCategoryChange(groupId, event.target.value)} /></label>
+              <label>Judge Image URL<input value={data.judgeGroups[groupId].imageUrl || ''} placeholder="https://..." onChange={(event) => props.onImageChange(groupId, event.target.value)} /></label>
+              <label>Upload Judge Image<input type="file" accept="image/*" onChange={(event) => handleImageFile(groupId, event)} /></label>
+              {data.judgeGroups[groupId].imageUrl ? (
+                <div className="setup-judge-preview">
+                  <img src={data.judgeGroups[groupId].imageUrl} alt="" />
+                  <button className="ghost" type="button" onClick={() => props.onImageChange(groupId, '')}>Clear Image</button>
+                </div>
+              ) : null}
               <label>Starting Run Order<input type="number" min="1" max={Object.keys(data.teams).length} value={data.judgeGroups[groupId].startRunOrder} onChange={(event) => props.onStartChange(groupId, Number(event.target.value))} /></label>
             </div>
           ))}
