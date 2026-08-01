@@ -1104,6 +1104,9 @@ type GroupSummary = {
   completed: number
   remaining: number
   issues: number
+  imageUrl?: string
+  imagePositionX?: number
+  imagePositionY?: number
 }
 
 function summarizeLevel(data: CompetitionData | null) {
@@ -1134,6 +1137,9 @@ function summarizeLevel(data: CompetitionData | null) {
       completed,
       remaining: entries.length - completed,
       issues,
+      imageUrl: data.judgeGroups[groupId]?.imageUrl,
+      imagePositionX: data.judgeGroups[groupId]?.imagePositionX,
+      imagePositionY: data.judgeGroups[groupId]?.imagePositionY,
     }
   })
 
@@ -1206,7 +1212,16 @@ function SummaryPage({
                     key={group.groupId}
                     title={group.configured ? group.categoryName : 'Not Configured'}
                   >
-                    <span>ชุด {index + 1}</span>
+                    <div className="summary-judge-head">
+                      <div className="summary-judge-image" aria-hidden="true">
+                        {group.imageUrl ? (
+                          <img src={group.imageUrl} alt="" style={imagePositionStyle(group)} />
+                        ) : (
+                          <span>{index + 1}</span>
+                        )}
+                      </div>
+                      <span>ชุด {index + 1}</span>
+                    </div>
                     <strong>{group.configured ? `${group.completed}/${group.total}` : '-'}</strong>
                     {group.configured ? (
                       <div className="mini-progress" aria-hidden="true">
