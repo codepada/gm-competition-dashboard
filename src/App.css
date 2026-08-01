@@ -87,10 +87,10 @@
 }
 
 .admin-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 10;
+  position: fixed;
+  top: 68px;
+  right: 16px;
+  z-index: 1000;
   display: grid;
   width: min(280px, calc(100vw - 28px));
   gap: 8px;
@@ -1020,6 +1020,13 @@ textarea {
   .top-actions {
     display: grid;
     gap: 6px;
+  }
+
+  .admin-menu {
+    top: 62px;
+    right: 14px;
+    left: 14px;
+    width: auto;
   }
 
   .top-actions > *,
