@@ -156,6 +156,12 @@ function formatRemaining(minutes: number) {
   return `${whole} min remaining`
 }
 
+function imagePositionStyle(group: { imagePositionX?: number; imagePositionY?: number }) {
+  return {
+    objectPosition: `${group.imagePositionX ?? 50}% ${group.imagePositionY ?? 50}%`,
+  }
+}
+
 function getActiveRound(data: CompetitionData, now: Date) {
   const rounds = Object.entries(data.rounds)
     .map(([roundKey, round]) => ({
@@ -801,6 +807,19 @@ function App() {
     }), 'Judge image saved')
   }
 
+  function updateGroupImagePosition(groupId: string, axis: 'imagePositionX' | 'imagePositionY', value: number) {
+    updateData((current) => rebuildFromSetup({
+      ...current,
+      judgeGroups: {
+        ...current.judgeGroups,
+        [groupId]: {
+          ...current.judgeGroups[groupId],
+          [axis]: value,
+        },
+      },
+    }), 'Judge image position saved')
+  }
+
   function updateStart(groupId: string, startRunOrder: number) {
     updateData((current) => rebuildFromSetup({
       ...current,
@@ -981,6 +1000,7 @@ function App() {
           onStart={() => navigate('/dashboard')}
           onStartChange={updateStart}
           onImageChange={updateGroupImage}
+          onImagePositionChange={updateGroupImagePosition}
         />
       )}
 
@@ -1277,7 +1297,7 @@ function DashboardPage(props: DashboardProps) {
               <div className="card-head">
                 <div className="judge-image" aria-hidden="true">
                   {data.judgeGroups[groupId].imageUrl ? (
-                    <img src={data.judgeGroups[groupId].imageUrl} alt="" />
+                    <img src={data.judgeGroups[groupId].imageUrl} alt="" style={imagePositionStyle(data.judgeGroups[groupId])} />
                   ) : (
                     <span>{index + 1}</span>
                   )}
@@ -1398,6 +1418,7 @@ type SetupProps = {
   onExportTeams: () => void
   onGeneratedSchedule: (totalTeams: number) => void
   onImageChange: (groupId: string, imageUrl: string) => void
+  onImagePositionChange: (groupId: string, axis: 'imagePositionX' | 'imagePositionY', value: number) => void
   onResetAll: () => void
   onInitializeLevel: () => void
   onSettingsChange: <K extends keyof CompetitionData['settings']>(field: K, value: CompetitionData['settings'][K]) => void
@@ -1443,8 +1464,16 @@ function SetupPage(props: SetupProps) {
               <label>Upload Judge Image<input type="file" accept="image/*" onChange={(event) => handleImageFile(groupId, event)} /></label>
               {data.judgeGroups[groupId].imageUrl ? (
                 <div className="setup-judge-preview">
-                  <img src={data.judgeGroups[groupId].imageUrl} alt="" />
-                  <button className="ghost" type="button" onClick={() => props.onImageChange(groupId, '')}>Clear Image</button>
+                  <img src={data.judgeGroups[groupId].imageUrl} alt="" style={imagePositionStyle(data.judgeGroups[groupId])} />
+                  <div className="image-position-controls">
+                    <label>Horizontal<input type="range" min="0" max="100" value={data.judgeGroups[groupId].imagePositionX ?? 50} onChange={(event) => props.onImagePositionChange(groupId, 'imagePositionX', Number(event.target.value))} /></label>
+                    <label>Vertical<input type="range" min="0" max="100" value={data.judgeGroups[groupId].imagePositionY ?? 50} onChange={(event) => props.onImagePositionChange(groupId, 'imagePositionY', Number(event.target.value))} /></label>
+                    <button className="ghost" type="button" onClick={() => {
+                      props.onImagePositionChange(groupId, 'imagePositionX', 50)
+                      props.onImagePositionChange(groupId, 'imagePositionY', 50)
+                    }}>Center Image</button>
+                    <button className="ghost" type="button" onClick={() => props.onImageChange(groupId, '')}>Clear Image</button>
+                  </div>
                 </div>
               ) : null}
               <label>Starting Run Order<input type="number" min="1" max={Object.keys(data.teams).length} value={data.judgeGroups[groupId].startRunOrder} onChange={(event) => props.onStartChange(groupId, Number(event.target.value))} /></label>

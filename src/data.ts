@@ -34,6 +34,8 @@ export type JudgeGroup = {
   startRunOrder: number
   configured: boolean
   imageUrl?: string
+  imagePositionX?: number
+  imagePositionY?: number
 }
 
 export type GroupRoundState = {
