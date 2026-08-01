@@ -691,8 +691,47 @@ textarea {
 }
 
 .summary-level-meta .issue-count {
+  border: 0;
+  min-height: 0;
   background: #fff4ce;
   color: #8a5a00;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 4px 8px;
+}
+
+.summary-issue-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 10px;
+}
+
+.summary-issue-row {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid rgba(138, 90, 0, 0.18);
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #1d1d1f;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.summary-issue-row span,
+.summary-issue-row em {
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.summary-issue-row strong {
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .summary-group-strip {

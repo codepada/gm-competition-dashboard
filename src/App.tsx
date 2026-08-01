@@ -1139,9 +1139,19 @@ type GroupSummary = {
   imagePositionY?: number
 }
 
+type IssueSummary = {
+  categoryName: string
+  groupLabel: string
+  issueNote?: string
+  round: number
+  seatNumber: string
+  teamName: string
+}
+
 function summarizeLevel(data: CompetitionData | null) {
   if (!data) return null
 
+  const issueSummaries: IssueSummary[] = []
   const groupSummaries = judgeGroupIds.map((groupId, index): GroupSummary => {
     const roundEntries = Object.entries(data.rounds).sort(([a], [b]) =>
       Number(a.replace('round-', '')) - Number(b.replace('round-', '')),
@@ -1157,6 +1167,18 @@ function summarizeLevel(data: CompetitionData | null) {
       : []
     const completed = entries.filter((entry) => entry.group.completed).length
     const issues = entries.filter((entry) => entry.group.status === 'ISSUE').length
+    entries
+      .filter((entry) => entry.group.status === 'ISSUE')
+      .forEach((entry) => {
+        issueSummaries.push({
+          categoryName: data.judgeGroups[groupId]?.categoryName || entry.group.categoryName,
+          groupLabel: `Judge Group ${index + 1}`,
+          issueNote: entry.group.issueNote,
+          round: entry.round,
+          seatNumber: entry.group.seatNumber,
+          teamName: entry.group.teamName,
+        })
+      })
 
     return {
       groupId,
@@ -1183,6 +1205,7 @@ function summarizeLevel(data: CompetitionData | null) {
     groupSummaries,
     total,
     completed,
+    issueSummaries,
     remaining,
     issues,
   }
@@ -1195,6 +1218,8 @@ function SummaryPage({
   dataByLevel: Record<CompetitionLevelId, CompetitionData | null>
   onOpenLevel: (levelId: CompetitionLevelId) => void
 }) {
+  const [openIssueLevel, setOpenIssueLevel] = useState<CompetitionLevelId | null>(null)
+
   return (
     <section className="page summary-page">
       <div className="summary-hero">
@@ -1231,7 +1256,11 @@ function SummaryPage({
                 </button>
                 <div className="summary-level-meta">
                   <span>เหลือ {summary.remaining}</span>
-                  {summary.issues ? <span className="issue-count">{summary.issues} issue</span> : <span>ไม่มี issue</span>}
+                  {summary.issues ? (
+                    <button className="issue-count" type="button" onClick={() => setOpenIssueLevel((current) => current === level.id ? null : level.id)}>
+                      {summary.issues} issue
+                    </button>
+                  ) : <span>ไม่มี issue</span>}
                 </div>
               </div>
 
@@ -1261,6 +1290,17 @@ function SummaryPage({
                   </div>
                 ))}
               </div>
+              {openIssueLevel === level.id && summary.issueSummaries.length ? (
+                <div className="summary-issue-panel">
+                  {summary.issueSummaries.map((issue) => (
+                    <button className="summary-issue-row" key={`${issue.groupLabel}-${issue.round}-${issue.seatNumber}`} type="button" onClick={() => onOpenLevel(level.id)}>
+                      <span>{issue.groupLabel} · Round {issue.round}</span>
+                      <strong>{issue.seatNumber} · {issue.teamName}</strong>
+                      <em>{issue.issueNote || issue.categoryName}</em>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </article>
           )
         })}
