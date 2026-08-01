@@ -436,6 +436,11 @@ function App() {
     updateData((current) => ({
       ...current,
       eventLogs: {},
+      settings: {
+        ...current.settings,
+        currentRound: 1,
+        followCurrentTime: false,
+      },
       rounds: Object.fromEntries(
         Object.entries(current.rounds).map(([roundKey, round]) => [
           roundKey,
