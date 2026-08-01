@@ -667,6 +667,27 @@ textarea {
   padding-left: 18px;
 }
 
+.admin-reset-box {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: #f5f5f7;
+  padding: 12px;
+}
+
+.admin-reset-box strong {
+  color: #1d1d1f;
+}
+
+.admin-reset-box p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 .empty-level .panel {
   max-width: 680px;
   margin: 60px auto;

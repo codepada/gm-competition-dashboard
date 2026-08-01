@@ -429,6 +429,38 @@ function App() {
     }
   }
 
+  function clearEvaluationResults() {
+    const message = `Clear test results for ${getLevelLabel(selectedLevel)}? Teams, schedule, and settings will stay the same.`
+    if (!window.confirm(message)) return
+
+    updateData((current) => ({
+      ...current,
+      eventLogs: {},
+      rounds: Object.fromEntries(
+        Object.entries(current.rounds).map(([roundKey, round]) => [
+          roundKey,
+          {
+            ...round,
+            groups: Object.fromEntries(
+              Object.entries(round.groups).map(([groupId, group]) => [
+                groupId,
+                {
+                  ...group,
+                  completed: false,
+                  completedAt: undefined,
+                  completedBy: undefined,
+                  issueNote: undefined,
+                  status: 'WAITING',
+                  updatedAt: undefined,
+                },
+              ]),
+            ) as Record<string, GroupRoundState>,
+          },
+        ]),
+      ),
+    }), 'Test results cleared')
+  }
+
   function handleComplete(groupId: string) {
     if (!currentRoundState) return
     if (currentRoundState.groups[groupId]?.configured === false) return
@@ -805,6 +837,7 @@ function App() {
           onApplyCsv={applyCsvPreview}
           onBackupImport={importBackup}
           onCategoryChange={updateCategory}
+          onClearResults={clearEvaluationResults}
           onCsvFile={handleCsvFile}
           onExportEvents={exportEventsCsv}
           onExportJson={exportStatusJson}
@@ -1155,6 +1188,7 @@ type SetupProps = {
   onApplyCsv: () => void
   onBackupImport: (event: ChangeEvent<HTMLInputElement>) => void
   onCategoryChange: (groupId: string, categoryName: string) => void
+  onClearResults: () => void
   onCsvFile: (event: ChangeEvent<HTMLInputElement>) => void
   onExportEvents: () => void
   onExportJson: () => void
@@ -1231,7 +1265,12 @@ function SetupPage(props: SetupProps) {
             <button className="ghost" type="button" onClick={props.onExportJson}>Export Selected Level JSON</button>
           </div>
           <label>Import Selected Level JSON<input type="file" accept=".json,application/json" onChange={props.onBackupImport} /></label>
-          <button className="danger" type="button" onClick={props.onResetAll}>Reset Selected Level</button>
+          <div className="admin-reset-box">
+            <strong>Admin Reset</strong>
+            <p>Clear all Complete and Issue test results for this level only. Teams, schedule, and settings stay unchanged.</p>
+            <button className="ghost" type="button" onClick={props.onClearResults}>Clear Test Results</button>
+            <button className="danger" type="button" onClick={props.onResetAll}>Reset Selected Level</button>
+          </div>
           <button className="complete" type="button" onClick={props.onStart}>Start Competition</button>
         </section>
       </div>
