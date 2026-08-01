@@ -162,6 +162,13 @@ function imagePositionStyle(group: { imagePositionX?: number; imagePositionY?: n
   }
 }
 
+function displayCompetitionTitle(data: CompetitionData, levelId: CompetitionLevelId) {
+  const levelLabel = getLevelLabel(levelId)
+  return data.settings.competitionName.includes(levelLabel)
+    ? data.settings.competitionName
+    : `${data.settings.competitionName} · ${levelLabel}`
+}
+
 function getActiveRound(data: CompetitionData, now: Date) {
   const rounds = Object.entries(data.rounds)
     .map(([roundKey, round]) => ({
@@ -886,7 +893,7 @@ function App() {
         <div className="title-row">
           <div>
             <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
-            <h1>{data.settings.competitionName} · {getLevelLabel(selectedLevel)}</h1>
+            <h1>{displayCompetitionTitle(data, selectedLevel)}</h1>
           </div>
           {!isAdmin ? (
             <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>
@@ -1233,7 +1240,7 @@ function DashboardPage(props: DashboardProps) {
           <strong>{formatClock(now)}</strong>
         </div>
         <div>
-          <span className="label">Current Round</span>
+          <span className="label">Round</span>
           <strong>{currentRound} / {data.settings.totalRounds}</strong>
         </div>
         <div>

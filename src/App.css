@@ -347,15 +347,15 @@ textarea {
 
 .card-head {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
 }
 
 .judge-image {
   display: grid;
-  width: 72px;
-  height: 72px;
+  width: 96px;
+  height: 96px;
   overflow: hidden;
   place-items: center;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -1148,14 +1148,14 @@ textarea {
   }
 
   .card-head {
-    grid-template-columns: 56px minmax(0, 1fr) auto;
-    gap: 7px;
+    grid-template-columns: 76px minmax(0, 1fr) auto;
+    gap: 8px;
   }
 
   .judge-image {
-    width: 56px;
-    height: 56px;
-    font-size: 16px;
+    width: 76px;
+    height: 76px;
+    font-size: 20px;
   }
 
   .card-round-controls {
@@ -1294,6 +1294,15 @@ textarea {
   .judge-card {
     padding: 5px;
     border-radius: 12px;
+  }
+
+  .card-head {
+    grid-template-columns: 62px minmax(0, 1fr) auto;
+  }
+
+  .judge-image {
+    width: 62px;
+    height: 62px;
   }
 
   .card-head h2 {
