@@ -350,6 +350,25 @@ textarea {
   gap: 12px;
 }
 
+.card-round-controls {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.8fr) minmax(76px, 1fr) minmax(64px, 0.8fr);
+  gap: 8px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.card-round-controls button {
+  min-height: 38px;
+  padding: 7px 8px;
+}
+
+.card-round-controls input {
+  min-height: 38px;
+  padding: 7px 8px;
+  text-align: center;
+}
+
 .card-head h2,
 .timeline-wrap h2,
 .panel h2 {
@@ -1076,6 +1095,24 @@ textarea {
 
   .card-head {
     gap: 5px;
+  }
+
+  .card-round-controls {
+    grid-template-columns: minmax(34px, 0.7fr) minmax(44px, 0.9fr) minmax(34px, 0.7fr);
+    gap: 3px;
+    margin-top: 5px;
+  }
+
+  .card-round-controls label {
+    gap: 2px;
+    font-size: 9px;
+  }
+
+  .card-round-controls button,
+  .card-round-controls input {
+    min-height: 28px;
+    padding: 4px 2px;
+    font-size: 9px;
   }
 
   .card-head h2 {

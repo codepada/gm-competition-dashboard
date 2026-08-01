@@ -266,6 +266,10 @@ function App() {
     'junior-high-school': readCachedCompetition('junior-high-school'),
     'senior-high-school': readCachedCompetition('senior-high-school'),
   }))
+  const [groupRounds, setGroupRounds] = useState<Record<string, number>>(() => {
+    const initialRound = data.settings.followCurrentTime ? getActiveRound(data, now) : data.settings.currentRound
+    return Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, initialRound]))
+  })
   const isAdmin = session?.role === 'admin'
 
   useEffect(() => {
@@ -434,6 +438,11 @@ function App() {
     ? minutesUntil(data.settings.competitionDate, currentRoundState.finishTime, now)
     : 0
 
+  function setAllGroupRounds(round: number) {
+    const nextRound = Math.min(Math.max(1, round), data.settings.totalRounds)
+    setGroupRounds(Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, nextRound])))
+  }
+
   function goTo(routeName: Route) {
     if (!isAdmin && (routeName === '/setup' || routeName === '/summary')) return
     navigate(routeName)
@@ -444,6 +453,7 @@ function App() {
     if (!isAdmin && session?.levelId) return
     localStorage.setItem(selectedLevelKey, levelId)
     setSelectedLevel(levelId)
+    setGroupRounds(Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, 1])))
     setMenuOpen(false)
   }
 
@@ -509,6 +519,7 @@ function App() {
     const message = `Clear test results for ${getLevelLabel(selectedLevel)}? Teams, schedule, and settings will stay the same.`
     if (!window.confirm(message)) return
 
+    setAllGroupRounds(1)
     updateData((current) => ({
       ...current,
       eventLogs: {},
@@ -542,11 +553,12 @@ function App() {
     }), 'Test results cleared')
   }
 
-  function handleComplete(groupId: string) {
-    if (!currentRoundState) return
-    if (currentRoundState.groups[groupId]?.configured === false) return
+  function handleComplete(groupId: string, round: number) {
+    const roundState = data.rounds[`round-${round}`]
+    if (!roundState) return
+    if (roundState.groups[groupId]?.configured === false) return
     updateData((current) => {
-      const roundKey = `round-${currentRound}`
+      const roundKey = `round-${round}`
       const group = current.rounds[roundKey].groups[groupId]
       if (group.completed) return current
       const nextGroup = {
@@ -570,16 +582,17 @@ function App() {
           },
         },
       }
-      return addLog(next, makeLog('COMPLETE', currentRound, groupId, staffName, nextGroup, undefined, group, nextGroup))
+      return addLog(next, makeLog('COMPLETE', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
     }, 'Completion saved')
   }
 
-  function handleUndo(groupId: string) {
-    if (!currentRoundState) return
-    if (currentRoundState.groups[groupId]?.configured === false) return
+  function handleUndo(groupId: string, round: number) {
+    const roundState = data.rounds[`round-${round}`]
+    if (!roundState) return
+    if (roundState.groups[groupId]?.configured === false) return
     if (!window.confirm('Clear this completion status?')) return
     updateData((current) => {
-      const roundKey = `round-${currentRound}`
+      const roundKey = `round-${round}`
       const group = current.rounds[roundKey].groups[groupId]
       const nextGroup = {
         ...group,
@@ -602,7 +615,7 @@ function App() {
           },
         },
       }
-      return addLog(next, makeLog('UNDO', currentRound, groupId, staffName, nextGroup, undefined, group, nextGroup))
+      return addLog(next, makeLog('UNDO', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
     }, 'Completion cleared')
   }
 
@@ -638,6 +651,7 @@ function App() {
   }
 
   function changeRound(round: number) {
+    setAllGroupRounds(round)
     updateData((current) => ({
       ...current,
       settings: {
@@ -649,6 +663,7 @@ function App() {
   }
 
   function setFollowCurrentTime(followCurrentTime: boolean) {
+    if (followCurrentTime) setAllGroupRounds(activeRound)
     updateData((current) => ({
       ...current,
       settings: {
@@ -915,10 +930,17 @@ function App() {
           currentRoundState={currentRoundState}
           data={data}
           deadlineMinutes={deadlineMinutes}
+          groupRounds={groupRounds}
           now={now}
           requiredCount={requiredCount}
           onComplete={handleComplete}
-          onIssue={(groupId) => setIssueDialog({ round: currentRound, groupId, note: '' })}
+          onGroupRoundChange={(groupId, round) => {
+            setGroupRounds((current) => ({
+              ...current,
+              [groupId]: Math.min(Math.max(1, round), data.settings.totalRounds),
+            }))
+          }}
+          onIssue={(groupId, round) => setIssueDialog({ round, groupId, note: '' })}
           onFollowCurrentTime={setFollowCurrentTime}
           onResetRound={resetCurrentRound}
           onRoundChange={changeRound}
@@ -1005,14 +1027,16 @@ type DashboardProps = {
   currentRoundState: CompetitionData['rounds'][string]
   data: CompetitionData
   deadlineMinutes: number
+  groupRounds: Record<string, number>
   now: Date
   requiredCount: number
-  onComplete: (groupId: string) => void
+  onComplete: (groupId: string, round: number) => void
   onFollowCurrentTime: (follow: boolean) => void
-  onIssue: (groupId: string) => void
+  onGroupRoundChange: (groupId: string, round: number) => void
+  onIssue: (groupId: string, round: number) => void
   onResetRound: () => void
   onRoundChange: (round: number) => void
-  onUndo: (groupId: string) => void
+  onUndo: (groupId: string, round: number) => void
   saveMessage: string
   staffName: string
 }
@@ -1161,7 +1185,7 @@ function SummaryPage({
 }
 
 function DashboardPage(props: DashboardProps) {
-  const { data, currentRound, currentRoundState, completedCount, deadlineMinutes, now } = props
+  const { data, currentRound, currentRoundState, completedCount, deadlineMinutes, groupRounds, now } = props
 
   return (
     <section className="page">
@@ -1227,8 +1251,10 @@ function DashboardPage(props: DashboardProps) {
         {judgeGroupIds
           .filter((groupId) => currentRoundState.groups[groupId]?.configured !== false)
           .map((groupId, index) => {
-          const group = currentRoundState.groups[groupId]
-          const status = computeStatus(group, currentRoundState.finishTime, data, now)
+          const groupRound = Math.min(Math.max(1, groupRounds[groupId] || currentRound), data.settings.totalRounds)
+          const groupRoundState = data.rounds[`round-${groupRound}`] || currentRoundState
+          const group = groupRoundState.groups[groupId]
+          const status = computeStatus(group, groupRoundState.finishTime, data, now)
           const configured = group.configured !== false
           return (
             <article className={`judge-card group-${index + 1} ${configured ? status.toLowerCase() : 'not-configured'}`} key={groupId}>
@@ -1239,17 +1265,45 @@ function DashboardPage(props: DashboardProps) {
                 </div>
                 <span className="status-pill">{configured ? status.replace('_', ' ') : 'Not Configured'}</span>
               </div>
+              <div className="card-round-controls">
+                <button
+                  className="ghost"
+                  type="button"
+                  disabled={groupRound <= 1}
+                  onClick={() => props.onGroupRoundChange(groupId, groupRound - 1)}
+                >
+                  Prev
+                </button>
+                <label>
+                  Round
+                  <input
+                    type="number"
+                    min="1"
+                    max={data.settings.totalRounds}
+                    value={groupRound}
+                    onChange={(event) => props.onGroupRoundChange(groupId, Number(event.target.value))}
+                  />
+                </label>
+                <button
+                  className="ghost"
+                  type="button"
+                  disabled={groupRound >= data.settings.totalRounds}
+                  onClick={() => props.onGroupRoundChange(groupId, groupRound + 1)}
+                >
+                  Next
+                </button>
+              </div>
               <dl className="team-facts">
                 <div><dt>Run Order</dt><dd>{configured ? group.runOrder : '-'}</dd></div>
                 <div><dt>Seat Number</dt><dd>{group.seatNumber}</dd></div>
                 <div><dt>Team</dt><dd>{group.teamName}</dd></div>
-                <div><dt>Deadline</dt><dd>{currentRoundState.finishTime}</dd></div>
+                <div><dt>Deadline</dt><dd>{groupRoundState.finishTime}</dd></div>
               </dl>
               <p className="timestamp">{group.completedAt ? `Completed ${new Date(group.completedAt).toLocaleTimeString()} by ${group.completedBy || 'Staff'}` : group.issueNote ? `Issue: ${group.issueNote}` : 'Awaiting confirmation'}</p>
               <div className="card-actions">
-                <button className="complete" type="button" disabled={!props.canEdit || !configured || group.completed} onClick={() => props.onComplete(groupId)}>Complete</button>
-                <button className="issue" type="button" disabled={!props.canEdit || !configured} onClick={() => props.onIssue(groupId)}>Issue</button>
-                <button className="ghost" type="button" disabled={!props.canEdit || !configured || !group.completed} onClick={() => props.onUndo(groupId)}>Undo</button>
+                <button className="complete" type="button" disabled={!props.canEdit || !configured || group.completed} onClick={() => props.onComplete(groupId, groupRound)}>Complete</button>
+                <button className="issue" type="button" disabled={!props.canEdit || !configured} onClick={() => props.onIssue(groupId, groupRound)}>Issue</button>
+                <button className="ghost" type="button" disabled={!props.canEdit || !configured || !group.completed} onClick={() => props.onUndo(groupId, groupRound)}>Undo</button>
               </div>
             </article>
           )
