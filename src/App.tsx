@@ -851,23 +851,29 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
-          <h1>{data.settings.competitionName} · {getLevelLabel(selectedLevel)}</h1>
+        <div className="title-row">
+          <div>
+            <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
+            <h1>{data.settings.competitionName} · {getLevelLabel(selectedLevel)}</h1>
+          </div>
+          {!isAdmin ? (
+            <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>
+          ) : null}
         </div>
-        <button
-          aria-expanded={menuOpen}
-          aria-label="Open menu"
-          className="menu-button"
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-        <div className={menuOpen ? 'top-actions open' : 'top-actions'}>
-          {isAdmin ? (
+        {isAdmin ? (
+          <>
+            <button
+              aria-expanded={menuOpen}
+              aria-label="Open menu"
+              className="menu-button"
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+            <div className={menuOpen ? 'top-actions open' : 'top-actions'}>
             <label className="level-select">
               Level
               <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
@@ -876,37 +882,29 @@ function App() {
                 ))}
               </select>
             </label>
-          ) : (
-            <div className="locked-level">
-              <span className="label">Level</span>
-              <strong>{getLevelLabel(selectedLevel)}</strong>
-            </div>
-          )}
-          <button className={effectiveRoute === '/dashboard' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/dashboard')}>Dashboard</button>
-          {isAdmin ? (
-            <>
+              <button className={effectiveRoute === '/dashboard' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/dashboard')}>Dashboard</button>
               <button className={effectiveRoute === '/summary' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/summary')}>Summary</button>
               <button className={effectiveRoute === '/setup' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/setup')}>Setup</button>
-            </>
-          ) : null}
-          <button
-            className="ghost utility-item"
-            type="button"
-            onClick={() => {
-              const nextName = window.prompt('Staff Name', staffName)?.trim()
-              if (!nextName) return
-              localStorage.setItem(staffNameKey, nextName)
-              setStaffName(nextName)
-            }}
-          >
-            {staffName || 'Staff'}
-          </button>
-          <span className={firebaseDiagnostics.connected ? 'badge good utility-item' : 'badge warning utility-item'}>
-            {firebaseDiagnostics.connected ? 'Firebase' : 'Local cache'}
-          </span>
-          <span className={online ? 'badge good utility-item' : 'badge danger utility-item'}>{online ? 'Online' : 'Offline'}</span>
-          <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>
-        </div>
+              <button
+                className="ghost utility-item"
+                type="button"
+                onClick={() => {
+                  const nextName = window.prompt('Staff Name', staffName)?.trim()
+                  if (!nextName) return
+                  localStorage.setItem(staffNameKey, nextName)
+                  setStaffName(nextName)
+                }}
+              >
+                {staffName || 'Staff'}
+              </button>
+              <span className={firebaseDiagnostics.connected ? 'badge good utility-item' : 'badge warning utility-item'}>
+                {firebaseDiagnostics.connected ? 'Firebase' : 'Local cache'}
+              </span>
+              <span className={online ? 'badge good utility-item' : 'badge danger utility-item'}>{online ? 'Online' : 'Offline'}</span>
+              <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>
+            </div>
+          </>
+        ) : null}
       </header>
 
       {effectiveRoute === '/summary' ? (
