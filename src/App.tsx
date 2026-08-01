@@ -925,7 +925,7 @@ function App() {
           ) : null}
         </div>
         {isAdmin ? (
-          <>
+          <div className="admin-menu-wrap">
             <button
               aria-expanded={menuOpen}
               aria-label="Open menu"
@@ -937,15 +937,16 @@ function App() {
               <span></span>
               <span></span>
             </button>
-            <div className={menuOpen ? 'top-actions open' : 'top-actions'}>
-            <label className="level-select">
-              Level
-              <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
-                {competitionLevels.map((level) => (
-                  <option key={level.id} value={level.id}>{level.label}</option>
-                ))}
-              </select>
-            </label>
+            {menuOpen ? (
+              <div className="top-actions admin-menu">
+                <label className="level-select">
+                  Level
+                  <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
+                    {competitionLevels.map((level) => (
+                      <option key={level.id} value={level.id}>{level.label}</option>
+                    ))}
+                  </select>
+                </label>
               <button className={effectiveRoute === '/dashboard' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/dashboard')}>Dashboard</button>
               <button className={effectiveRoute === '/summary' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/summary')}>Summary</button>
               <button className={effectiveRoute === '/setup' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/setup')}>Setup</button>
@@ -966,8 +967,9 @@ function App() {
               </span>
               <span className={online ? 'badge good utility-item' : 'badge danger utility-item'}>{online ? 'Online' : 'Offline'}</span>
               <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>
-            </div>
-          </>
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </header>
 
