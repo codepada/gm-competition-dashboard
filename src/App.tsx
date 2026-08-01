@@ -162,6 +162,31 @@ function imagePositionStyle(group: { imagePositionX?: number; imagePositionY?: n
   }
 }
 
+function resizeImageFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Could not read image file.'))
+    reader.onload = () => {
+      const original = String(reader.result)
+      const image = new Image()
+      image.onerror = () => resolve(original)
+      image.onload = () => {
+        const size = 512
+        const scale = Math.min(1, size / Math.max(image.width, image.height))
+        const width = Math.max(1, Math.round(image.width * scale))
+        const height = Math.max(1, Math.round(image.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d')?.drawImage(image, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      }
+      image.src = original
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 function displayCompetitionTitle(data: CompetitionData, levelId: CompetitionLevelId) {
   const levelLabel = getLevelLabel(levelId)
   return data.settings.competitionName.includes(levelLabel)
@@ -1455,9 +1480,9 @@ function SetupPage(props: SetupProps) {
   function handleImageFile(groupId: string, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => props.onImageChange(groupId, String(reader.result))
-    reader.readAsDataURL(file)
+    resizeImageFile(file)
+      .then((imageUrl) => props.onImageChange(groupId, imageUrl))
+      .catch(() => window.alert('Could not use that image. Please try another file.'))
     event.target.value = ''
   }
 
@@ -1484,6 +1509,7 @@ function SetupPage(props: SetupProps) {
               <label>Category<input value={data.judgeGroups[groupId].categoryName} onChange={(event) => props.onCategoryChange(groupId, event.target.value)} /></label>
               <label>Judge Image URL<input value={data.judgeGroups[groupId].imageUrl || ''} placeholder="https://..." onChange={(event) => props.onImageChange(groupId, event.target.value)} /></label>
               <label>Upload Judge Image<input type="file" accept="image/*" onChange={(event) => handleImageFile(groupId, event)} /></label>
+              <p className="auto-save-note">Image saves automatically after upload or URL change.</p>
               {data.judgeGroups[groupId].imageUrl ? (
                 <div className="setup-judge-preview">
                   <img src={data.judgeGroups[groupId].imageUrl} alt="" style={imagePositionStyle(data.judgeGroups[groupId])} />

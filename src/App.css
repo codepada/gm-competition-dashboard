@@ -766,6 +766,13 @@ textarea {
   padding-top: 12px;
 }
 
+.auto-save-note {
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
 .setup-judge-preview {
   display: grid;
   grid-template-columns: 72px 1fr;
