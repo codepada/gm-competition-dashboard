@@ -1245,7 +1245,6 @@ function SummaryPage({
                           <span>{index + 1}</span>
                         )}
                       </div>
-                      <span>ชุด {index + 1}</span>
                     </div>
                     <strong>{group.configured ? `${group.completed}/${group.total}` : '-'}</strong>
                     {group.configured ? (
