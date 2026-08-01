@@ -968,6 +968,7 @@ function App() {
   }
 
   const effectiveRoute = !isAdmin && route !== '/dashboard' ? '/dashboard' : route
+  const headerTitle = effectiveRoute === '/summary' ? 'GM Advanced' : displayCompetitionTitle(data, selectedLevel)
 
   return (
     <main className="app-shell">
@@ -975,7 +976,7 @@ function App() {
         <div className="title-row">
           <div>
             <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
-            <h1>{displayCompetitionTitle(data, selectedLevel)}</h1>
+            <h1>{headerTitle}</h1>
           </div>
           {!isAdmin ? (
             <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>

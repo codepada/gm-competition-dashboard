@@ -1060,12 +1060,14 @@ textarea {
   }
 
   .topbar {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 4000;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
-    padding-top: 10px;
+    padding-top: calc(10px + env(safe-area-inset-top));
     padding-bottom: 10px;
   }
 
@@ -1105,7 +1107,7 @@ textarea {
   }
 
   .admin-menu {
-    top: 62px;
+    top: calc(62px + env(safe-area-inset-top));
     right: 14px;
     left: 14px;
     width: auto;
