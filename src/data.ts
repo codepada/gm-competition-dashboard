@@ -64,7 +64,7 @@ export type EventLog = {
   timestamp: string | object
   round: number
   judgeGroup: string
-  action: 'COMPLETE' | 'UNDO' | 'ISSUE' | 'RESET_ROUND' | 'IMPORT_BACKUP'
+  action: 'COMPLETE' | 'UNDO' | 'ISSUE' | 'CLEAR_ISSUE' | 'RESET_ROUND' | 'IMPORT_BACKUP'
   teamId?: string
   seatNumber?: string
   teamName?: string

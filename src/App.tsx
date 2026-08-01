@@ -463,6 +463,63 @@ function App() {
     void persist(mutator(data), message)
   }
 
+  async function persistLevel(levelId: CompetitionLevelId, nextData: CompetitionData, message = 'Saved') {
+    writeCachedCompetition(levelId, nextData)
+    setSummaryData((current) => ({
+      ...current,
+      [levelId]: nextData,
+    }))
+    if (levelId === selectedLevel) {
+      setData(nextData)
+      setLevelHasData(true)
+    }
+
+    if (!online || !firebaseIsConfigured()) {
+      queueCompetition(levelId, nextData)
+      setSaveMessage(firebaseIsConfigured() ? 'Offline: action queued' : 'Saved locally: Firebase env missing')
+      return
+    }
+
+    try {
+      await saveCompetition(levelId, nextData)
+      clearQueue(levelId)
+      setSaveMessage(message)
+    } catch {
+      queueCompetition(levelId, nextData)
+      setSaveMessage('Save failed: action queued')
+    }
+  }
+
+  function clearIssueFromSummary(levelId: CompetitionLevelId, round: number, groupId: string) {
+    const currentData = summaryData[levelId] || readCachedCompetition(levelId)
+    const roundKey = `round-${round}`
+    const group = currentData?.rounds[roundKey]?.groups[groupId]
+    if (!currentData || !group || group.status !== 'ISSUE') return
+
+    const nextGroup = {
+      ...group,
+      status: 'WAITING' as const,
+      issueNote: undefined,
+      issueAt: undefined,
+      updatedAt: nowIso(),
+    }
+    const nextData = addLog({
+      ...currentData,
+      rounds: {
+        ...currentData.rounds,
+        [roundKey]: {
+          ...currentData.rounds[roundKey],
+          groups: {
+            ...currentData.rounds[roundKey].groups,
+            [groupId]: nextGroup,
+          },
+        },
+      },
+    }, makeLog('CLEAR_ISSUE', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
+
+    void persistLevel(levelId, nextData, 'Issue cleared')
+  }
+
   const teams = useMemo(() => teamsFromRecord(data.teams), [data.teams])
   const activeRound = getActiveRound(data, now)
   const currentRound = data.settings.followCurrentTime
@@ -979,6 +1036,7 @@ function App() {
       {effectiveRoute === '/summary' ? (
         <SummaryPage
           dataByLevel={summaryData}
+          onClearIssue={clearIssueFromSummary}
           onOpenLevel={(levelId) => {
             changeLevel(levelId)
             navigate('/dashboard')
@@ -1141,6 +1199,7 @@ type GroupSummary = {
 
 type IssueSummary = {
   categoryName: string
+  groupId: string
   groupLabel: string
   issueNote?: string
   round: number
@@ -1172,6 +1231,7 @@ function summarizeLevel(data: CompetitionData | null) {
       .forEach((entry) => {
         issueSummaries.push({
           categoryName: data.judgeGroups[groupId]?.categoryName || entry.group.categoryName,
+          groupId,
           groupLabel: `Judge Group ${index + 1}`,
           issueNote: entry.group.issueNote,
           round: entry.round,
@@ -1213,12 +1273,14 @@ function summarizeLevel(data: CompetitionData | null) {
 
 function SummaryPage({
   dataByLevel,
+  onClearIssue,
   onOpenLevel,
 }: {
   dataByLevel: Record<CompetitionLevelId, CompetitionData | null>
+  onClearIssue: (levelId: CompetitionLevelId, round: number, groupId: string) => void
   onOpenLevel: (levelId: CompetitionLevelId) => void
 }) {
-  const [openIssueLevel, setOpenIssueLevel] = useState<CompetitionLevelId | null>(null)
+  const [openIssueGroup, setOpenIssueGroup] = useState<{ groupId: string; levelId: CompetitionLevelId } | null>(null)
 
   return (
     <section className="page summary-page">
@@ -1257,7 +1319,7 @@ function SummaryPage({
                 <div className="summary-level-meta">
                   <span>เหลือ {summary.remaining}</span>
                   {summary.issues ? (
-                    <button className="issue-count" type="button" onClick={() => setOpenIssueLevel((current) => current === level.id ? null : level.id)}>
+                    <button className="issue-count" type="button" onClick={() => setOpenIssueGroup((current) => current?.levelId === level.id ? null : { groupId: 'all', levelId: level.id })}>
                       {summary.issues} issue
                     </button>
                   ) : <span>ไม่มี issue</span>}
@@ -1265,11 +1327,24 @@ function SummaryPage({
               </div>
 
               <div className="summary-group-strip">
-                {summary.groupSummaries.map((group, index) => (
-                  <div
-                    className={group.configured ? `summary-group-tile group-${index + 1}` : 'summary-group-tile disabled'}
+                {summary.groupSummaries.map((group, index) => {
+                  const selected = openIssueGroup?.levelId === level.id && openIssueGroup.groupId === group.groupId
+                  return (
+                  <button
+                    className={[
+                      'summary-group-tile',
+                      `group-${index + 1}`,
+                      group.configured ? '' : 'disabled',
+                      group.issues ? 'has-issue' : '',
+                      selected ? 'selected' : '',
+                    ].filter(Boolean).join(' ')}
+                    disabled={!group.configured}
                     key={group.groupId}
                     title={group.configured ? group.categoryName : 'Not Configured'}
+                    type="button"
+                    onClick={() => group.issues ? setOpenIssueGroup((current) => (
+                      current?.levelId === level.id && current.groupId === group.groupId ? null : { groupId: group.groupId, levelId: level.id }
+                    )) : onOpenLevel(level.id)}
                   >
                     <div className="summary-judge-head">
                       <div className="summary-judge-image" aria-hidden="true">
@@ -1287,18 +1362,23 @@ function SummaryPage({
                         <span style={{ width: `${group.total ? (group.completed / group.total) * 100 : 0}%` }}></span>
                       </div>
                     ) : null}
-                  </div>
-                ))}
+                  </button>
+                )})}
               </div>
-              {openIssueLevel === level.id && summary.issueSummaries.length ? (
+              {openIssueGroup?.levelId === level.id && summary.issueSummaries.length ? (
                 <div className="summary-issue-panel">
-                  {summary.issueSummaries.map((issue) => (
-                    <button className="summary-issue-row" key={`${issue.groupLabel}-${issue.round}-${issue.seatNumber}`} type="button" onClick={() => onOpenLevel(level.id)}>
-                      <span>{issue.groupLabel} · Round {issue.round}</span>
-                      <strong>{issue.seatNumber} · {issue.teamName}</strong>
-                      <em>{issue.issueNote || issue.categoryName}</em>
-                    </button>
-                  ))}
+                  {summary.issueSummaries
+                    .filter((issue) => openIssueGroup.groupId === 'all' || issue.groupId === openIssueGroup.groupId)
+                    .map((issue) => (
+                      <div className="summary-issue-row" key={`${issue.groupId}-${issue.round}-${issue.seatNumber}`}>
+                        <button type="button" onClick={() => onOpenLevel(level.id)}>
+                          <span>{issue.groupLabel} · Round {issue.round}</span>
+                          <strong>{issue.seatNumber} · {issue.teamName}</strong>
+                          <em>{issue.issueNote || issue.categoryName}</em>
+                        </button>
+                        <button className="ghost clear-issue-button" type="button" onClick={() => onClearIssue(level.id, issue.round, issue.groupId)}>Clear Issue</button>
+                      </div>
+                    ))}
                 </div>
               ) : null}
             </article>
