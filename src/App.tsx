@@ -1317,9 +1317,9 @@ function DashboardPage(props: DashboardProps) {
                 >
                   Prev
                 </button>
-                <label>
-                  Round
+                <label className="round-input-label">
                   <input
+                    aria-label={`Judge Group ${index + 1} round`}
                     type="number"
                     min="1"
                     max={data.settings.totalRounds}

@@ -347,15 +347,15 @@ textarea {
 
 .card-head {
   display: grid;
-  grid-template-columns: 48px 1fr auto;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
 }
 
 .judge-image {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 72px;
+  height: 72px;
   overflow: hidden;
   place-items: center;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -373,10 +373,14 @@ textarea {
 
 .card-round-controls {
   display: grid;
-  grid-template-columns: minmax(64px, 0.8fr) minmax(76px, 1fr) minmax(64px, 0.8fr);
+  grid-template-columns: minmax(62px, 0.85fr) minmax(54px, 0.55fr) minmax(62px, 0.85fr);
   gap: 8px;
-  align-items: end;
+  align-items: center;
   margin-top: 12px;
+}
+
+.round-input-label {
+  display: block;
 }
 
 .card-round-controls button {
@@ -1144,32 +1148,27 @@ textarea {
   }
 
   .card-head {
-    grid-template-columns: 34px minmax(0, 1fr) auto;
-    gap: 5px;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    gap: 7px;
   }
 
   .judge-image {
-    width: 34px;
-    height: 34px;
-    font-size: 12px;
+    width: 56px;
+    height: 56px;
+    font-size: 16px;
   }
 
   .card-round-controls {
-    grid-template-columns: minmax(48px, 0.85fr) minmax(58px, 0.9fr) minmax(48px, 0.85fr);
+    grid-template-columns: minmax(42px, 0.9fr) minmax(34px, 0.6fr) minmax(42px, 0.9fr);
     gap: 4px;
-    margin-top: 7px;
-  }
-
-  .card-round-controls label {
-    gap: 2px;
-    font-size: 10px;
+    margin-top: 6px;
   }
 
   .card-round-controls button,
   .card-round-controls input {
-    min-height: 36px;
+    min-height: 34px;
     padding: 5px 2px;
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .card-head h2 {
