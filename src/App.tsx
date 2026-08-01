@@ -940,56 +940,56 @@ function SummaryPage({
       <div className="summary-hero">
         <div>
           <p className="eyebrow">All Levels</p>
-          <h2>Evaluation Summary</h2>
+          <h2>Progress Summary</h2>
         </div>
-        <p>Track remaining evaluations by judging category across every competition level.</p>
+        <p>Live completion counts for every judge group.</p>
       </div>
 
-      <div className="level-summary-grid">
+      <div className="summary-board">
         {competitionLevels.map((level) => {
           const data = dataByLevel[level.id]
           const summary = summarizeLevel(data)
 
           if (!data || !summary) {
             return (
-              <article className="summary-level-card" key={level.id}>
+              <article className="summary-level-row no-data" key={level.id}>
                 <div className="summary-card-head">
                   <h3>{level.label}</h3>
                   <span className="badge warning">No Data</span>
                 </div>
-                <p>No competition data has been configured for this level.</p>
                 <button className="ghost" type="button" onClick={() => onOpenLevel(level.id)}>Open Level</button>
               </article>
             )
           }
 
           return (
-            <article className="summary-level-card" key={level.id}>
-              <div className="summary-card-head">
-                <h3>{level.label}</h3>
-                <button className="ghost" type="button" onClick={() => onOpenLevel(level.id)}>Open Dashboard</button>
+            <article className="summary-level-row" key={level.id}>
+              <div className="summary-level-overview">
+                <button className="summary-level-button" type="button" onClick={() => onOpenLevel(level.id)}>
+                  <span>{level.label}</span>
+                  <strong>{summary.completed}/{summary.total}</strong>
+                </button>
+                <div className="summary-level-meta">
+                  <span>เหลือ {summary.remaining}</span>
+                  {summary.issues ? <span className="issue-count">{summary.issues} issue</span> : <span>ไม่มี issue</span>}
+                </div>
               </div>
 
-              <div className="summary-metrics">
-                <div><span className="label">Completed</span><strong>{summary.completed} / {summary.total}</strong></div>
-                <div><span className="label">Remaining</span><strong>{summary.remaining}</strong></div>
-                <div><span className="label">Issues</span><strong>{summary.issues}</strong></div>
-              </div>
-
-              <div className="compact-progress-grid">
-                {summary.groupSummaries.map((group) => (
-                  <div className={group.configured ? 'compact-progress-card' : 'compact-progress-card disabled'} key={group.groupId}>
-                    <div>
-                      <span className="label">{group.label}</span>
-                      <strong>{group.configured ? `${group.completed}/${group.total}` : '-'}</strong>
-                    </div>
-                    <small>{group.configured ? group.categoryName : 'Not Configured'}</small>
+              <div className="summary-group-strip">
+                {summary.groupSummaries.map((group, index) => (
+                  <div
+                    className={group.configured ? `summary-group-tile group-${index + 1}` : 'summary-group-tile disabled'}
+                    key={group.groupId}
+                    title={group.configured ? group.categoryName : 'Not Configured'}
+                  >
+                    <span>ชุด {index + 1}</span>
+                    <strong>{group.configured ? `${group.completed}/${group.total}` : '-'}</strong>
                     {group.configured ? (
                       <div className="mini-progress" aria-hidden="true">
                         <span style={{ width: `${group.total ? (group.completed / group.total) * 100 : 0}%` }}></span>
                       </div>
                     ) : null}
-                    <em>{group.configured ? `${group.remaining} remaining${group.issues ? ` · ${group.issues} issue` : ''}` : 'Not Configured'}</em>
+                    <em>{group.configured ? `เหลือ ${group.remaining}${group.issues ? ` · ${group.issues} issue` : ''}` : 'Not Configured'}</em>
                   </div>
                 ))}
               </div>

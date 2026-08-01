@@ -438,51 +438,60 @@ textarea {
 
 .summary-page {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .summary-hero {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border: 1px solid #d9e0ea;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   background: #ffffff;
-  padding: 18px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  padding: 14px 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.035);
 }
 
 .summary-hero h2 {
   margin: 0;
-  color: #162033;
-  font-size: 30px;
+  color: #1d1d1f;
+  font-size: 24px;
 }
 
 .summary-hero p {
   max-width: 520px;
-  color: #475569;
+  margin: 0;
+  color: #64748b;
   font-weight: 700;
 }
 
-.level-summary-grid {
+.summary-board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(280px, 1fr));
-  gap: 14px;
-  align-items: start;
+  gap: 10px;
 }
 
-.summary-level-card {
-  border: 1px solid #d9e0ea;
+.summary-level-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.62fr) minmax(520px, 1.8fr);
+  gap: 12px;
+  align-items: stretch;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  padding: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.035);
 }
 
-.summary-level-card {
+.summary-level-row.no-data {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.summary-level-overview {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  align-content: center;
+  gap: 8px;
 }
 
 .summary-card-head {
@@ -494,72 +503,108 @@ textarea {
 
 .summary-card-head h3 {
   margin: 0;
-  color: #162033;
-  font-size: 22px;
+  color: #1d1d1f;
+  font-size: 20px;
 }
 
-.summary-metrics {
+.summary-level-button {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0;
+  color: #1d1d1f;
+  text-align: left;
+}
+
+.summary-level-button span {
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.12;
+}
+
+.summary-level-button strong {
+  font-size: 34px;
+  line-height: 0.95;
+}
+
+.summary-level-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.summary-level-meta span {
+  border-radius: 999px;
+  background: #f5f5f7;
+  padding: 4px 8px;
+}
+
+.summary-level-meta .issue-count {
+  background: #fff4ce;
+  color: #8a5a00;
+}
+
+.summary-group-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
-.summary-metrics div {
+.summary-group-tile {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  align-content: space-between;
+  min-height: 118px;
+  gap: 7px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
   border-radius: 8px;
-  background: #f8fafc;
+  background: #f5f5f7;
   padding: 10px;
 }
 
-.summary-metrics strong {
-  display: block;
-  margin-top: 3px;
-  color: #162033;
-  font-size: 22px;
+.summary-group-tile.group-1 {
+  background: #eff7ff;
 }
 
-.compact-progress-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
-  gap: 10px;
+.summary-group-tile.group-2 {
+  background: #f0faf2;
 }
 
-.compact-progress-card {
-  display: grid;
-  gap: 6px;
-  border: 1px solid #d9e0ea;
-  border-radius: 8px;
-  background: #f8fafc;
-  padding: 12px;
+.summary-group-tile.group-3 {
+  background: #f7f2ff;
 }
 
-.compact-progress-card.disabled {
+.summary-group-tile.group-4 {
+  background: #fff6ed;
+}
+
+.summary-group-tile.disabled {
   opacity: 0.6;
 }
 
-.compact-progress-card > div:first-child {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.summary-group-tile span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
 }
 
-.compact-progress-card strong {
-  color: #162033;
-  font-size: 30px;
+.summary-group-tile strong {
+  color: #1d1d1f;
+  font-size: 28px;
   line-height: 1;
 }
 
-.compact-progress-card small {
-  min-height: 32px;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.25;
-}
-
-.compact-progress-card em {
+.summary-group-tile em {
   color: #64748b;
-  font-size: 13px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 900;
 }
@@ -692,9 +737,12 @@ textarea {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .setup-grid,
-  .level-summary-grid {
+  .setup-grid {
     grid-template-columns: repeat(2, minmax(240px, 1fr));
+  }
+
+  .summary-level-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -785,19 +833,85 @@ textarea {
     font-size: 12px;
   }
 
-  .setup-grid,
-  .level-summary-grid {
+  .setup-grid {
     grid-template-columns: 1fr;
   }
 
   .summary-hero {
-    align-items: start;
-    flex-direction: column;
+    display: none;
   }
 
-  .summary-metrics,
-  .compact-progress-grid {
+  .summary-page {
+    gap: 8px;
+  }
+
+  .summary-board {
+    gap: 8px;
+  }
+
+  .summary-level-row {
     grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .summary-level-row.no-data {
+    grid-template-columns: 1fr auto;
+  }
+
+  .summary-level-overview {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .summary-level-button {
+    gap: 2px;
+  }
+
+  .summary-level-button span {
+    font-size: 14px;
+  }
+
+  .summary-level-button strong {
+    font-size: 24px;
+  }
+
+  .summary-level-meta {
+    justify-content: flex-end;
+    gap: 4px;
+    font-size: 10px;
+    text-align: right;
+  }
+
+  .summary-level-meta span {
+    padding: 3px 6px;
+  }
+
+  .summary-group-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .summary-group-tile {
+    min-height: 86px;
+    gap: 4px;
+    padding: 7px 5px;
+  }
+
+  .summary-group-tile span {
+    font-size: 10px;
+  }
+
+  .summary-group-tile strong {
+    font-size: clamp(17px, 5.2vw, 22px);
+  }
+
+  .summary-group-tile em {
+    font-size: 9px;
+  }
+
+  .summary-group-tile .mini-progress {
+    height: 5px;
   }
 
   .page {
@@ -1043,5 +1157,29 @@ textarea {
   .card-actions .complete {
     min-height: 62px;
     font-size: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .summary-level-row {
+    padding: 7px;
+  }
+
+  .summary-group-strip {
+    gap: 4px;
+  }
+
+  .summary-group-tile {
+    min-height: 80px;
+    padding: 6px 4px;
+  }
+
+  .summary-group-tile strong {
+    font-size: 18px;
+  }
+
+  .summary-group-tile em {
+    font-size: 8px;
+    line-height: 1.1;
   }
 }
