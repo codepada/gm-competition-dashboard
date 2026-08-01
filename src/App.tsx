@@ -1247,12 +1247,12 @@ function SummaryPage({
                       </div>
                     </div>
                     <strong>{group.configured ? `${group.completed}/${group.total}` : '-'}</strong>
+                    <em>{group.configured ? `เหลือ ${group.remaining}${group.issues ? ` · ${group.issues} issue` : ''}` : 'Not Configured'}</em>
                     {group.configured ? (
                       <div className="mini-progress" aria-hidden="true">
                         <span style={{ width: `${group.total ? (group.completed / group.total) * 100 : 0}%` }}></span>
                       </div>
                     ) : null}
-                    <em>{group.configured ? `เหลือ ${group.remaining}${group.issues ? ` · ${group.issues} issue` : ''}` : 'Not Configured'}</em>
                   </div>
                 ))}
               </div>
