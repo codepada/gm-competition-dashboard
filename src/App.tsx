@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import './App.css'
 import {
   createDefaultCompetition,
@@ -33,13 +33,27 @@ const cacheKey = 'gm-advanced-competition-cache'
 const queueKey = 'gm-advanced-competition-queue'
 const staffNameKey = 'gm-advanced-staff-name'
 const selectedLevelKey = 'gm-advanced-selected-level'
+const sessionKey = 'gm-advanced-session'
 
 type Route = '/dashboard' | '/summary' | '/setup'
+type UserRole = 'admin' | 'level'
+type AppSession = {
+  username: string
+  role: UserRole
+  levelId?: CompetitionLevelId
+}
 type IssueDialogState = {
   round: number
   groupId: string
   note: string
 } | null
+
+const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; staffName: string }> = {
+  wgm2026: { password: '1122', role: 'admin', staffName: 'Admin' },
+  senior: { password: '1234', role: 'level', levelId: 'senior-high-school', staffName: 'Senior Staff' },
+  junior: { password: '1234', role: 'level', levelId: 'junior-high-school', staffName: 'Junior Staff' },
+  elementary: { password: '1234', role: 'level', levelId: 'elementary-school', staffName: 'Elementary Staff' },
+}
 
 const redirectedPath = new URLSearchParams(window.location.search).get('redirect')
 if (redirectedPath) {
@@ -92,6 +106,15 @@ function queueCompetition(levelId: CompetitionLevelId, data: CompetitionData) {
 
 function clearQueue(levelId: CompetitionLevelId) {
   localStorage.removeItem(scopedKey(queueKey, levelId))
+}
+
+function readSession() {
+  try {
+    const session = localStorage.getItem(sessionKey)
+    return session ? (JSON.parse(session) as AppSession) : null
+  } catch {
+    return null
+  }
 }
 
 function nowIso() {
@@ -220,8 +243,11 @@ function downloadFile(filename: string, content: string, type: string) {
 }
 
 function App() {
+  const [session, setSession] = useState<AppSession | null>(readSession)
   const [route, setRoute] = useState<Route>(getRoute)
   const [selectedLevel, setSelectedLevel] = useState<CompetitionLevelId>(() => {
+    const session = readSession()
+    if (session?.role === 'level' && session.levelId) return session.levelId
     const saved = localStorage.getItem(selectedLevelKey) as CompetitionLevelId | null
     return saved && competitionLevels.some((level) => level.id === saved) ? saved : defaultLevelId
   })
@@ -240,6 +266,22 @@ function App() {
     'junior-high-school': readCachedCompetition('junior-high-school'),
     'senior-high-school': readCachedCompetition('senior-high-school'),
   }))
+  const isAdmin = session?.role === 'admin'
+
+  useEffect(() => {
+    if (!session) return
+    if (session.role === 'level' && session.levelId && selectedLevel !== session.levelId) {
+      setSelectedLevel(session.levelId)
+      localStorage.setItem(selectedLevelKey, session.levelId)
+    }
+  }, [selectedLevel, session])
+
+  useEffect(() => {
+    if (!session) return
+    if (!isAdmin && (route === '/setup' || route === '/summary')) {
+      navigate('/dashboard')
+    }
+  }, [isAdmin, route, session])
 
   useEffect(() => {
     const onPop = () => setRoute(getRoute())
@@ -248,12 +290,12 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (staffName) return
+    if (!session || staffName) return
     const name = window.prompt('Staff Name')
-    const nextName = name?.trim() || 'Staff'
+    const nextName = name?.trim() || accounts[session.username]?.staffName || 'Staff'
     localStorage.setItem(staffNameKey, nextName)
     setStaffName(nextName)
-  }, [staffName])
+  }, [session, staffName])
 
   useEffect(() => {
     if (!firebaseIsConfigured()) {
@@ -393,14 +435,48 @@ function App() {
     : 0
 
   function goTo(routeName: Route) {
+    if (!isAdmin && (routeName === '/setup' || routeName === '/summary')) return
     navigate(routeName)
     setMenuOpen(false)
   }
 
   function changeLevel(levelId: CompetitionLevelId) {
+    if (!isAdmin && session?.levelId) return
     localStorage.setItem(selectedLevelKey, levelId)
     setSelectedLevel(levelId)
     setMenuOpen(false)
+  }
+
+  function handleLogin(username: string, password: string) {
+    const normalized = username.trim().toLowerCase()
+    const account = accounts[normalized]
+    if (!account || account.password !== password) {
+      return false
+    }
+
+    const nextSession: AppSession = {
+      username: normalized,
+      role: account.role,
+      levelId: account.levelId,
+    }
+    localStorage.setItem(sessionKey, JSON.stringify(nextSession))
+    localStorage.setItem(staffNameKey, account.staffName)
+    setSession(nextSession)
+    setStaffName(account.staffName)
+
+    if (account.levelId) {
+      localStorage.setItem(selectedLevelKey, account.levelId)
+      setSelectedLevel(account.levelId)
+    }
+    navigate('/dashboard')
+    return true
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(sessionKey)
+    setSession(null)
+    setMenuOpen(false)
+    navigate('/dashboard')
   }
 
   function initializeLevel() {
@@ -751,11 +827,17 @@ function App() {
       })
   }
 
+  if (!session) {
+    return <LoginPage onLogin={handleLogin} />
+  }
+
+  const effectiveRoute = !isAdmin && route !== '/dashboard' ? '/dashboard' : route
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Head Staff Control</p>
+          <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
           <h1>{data.settings.competitionName} · {getLevelLabel(selectedLevel)}</h1>
         </div>
         <button
@@ -770,17 +852,28 @@ function App() {
           <span></span>
         </button>
         <div className={menuOpen ? 'top-actions open' : 'top-actions'}>
-          <label className="level-select">
-            Level
-            <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
-              {competitionLevels.map((level) => (
-                <option key={level.id} value={level.id}>{level.label}</option>
-              ))}
-            </select>
-          </label>
-          <button className={route === '/dashboard' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/dashboard')}>Dashboard</button>
-          <button className={route === '/summary' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/summary')}>Summary</button>
-          <button className={route === '/setup' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/setup')}>Setup</button>
+          {isAdmin ? (
+            <label className="level-select">
+              Level
+              <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
+                {competitionLevels.map((level) => (
+                  <option key={level.id} value={level.id}>{level.label}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="locked-level">
+              <span className="label">Level</span>
+              <strong>{getLevelLabel(selectedLevel)}</strong>
+            </div>
+          )}
+          <button className={effectiveRoute === '/dashboard' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/dashboard')}>Dashboard</button>
+          {isAdmin ? (
+            <>
+              <button className={effectiveRoute === '/summary' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/summary')}>Summary</button>
+              <button className={effectiveRoute === '/setup' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/setup')}>Setup</button>
+            </>
+          ) : null}
           <button
             className="ghost utility-item"
             type="button"
@@ -797,10 +890,11 @@ function App() {
             {firebaseDiagnostics.connected ? 'Firebase' : 'Local cache'}
           </span>
           <span className={online ? 'badge good utility-item' : 'badge danger utility-item'}>{online ? 'Online' : 'Offline'}</span>
+          <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>
         </div>
       </header>
 
-      {route === '/summary' ? (
+      {effectiveRoute === '/summary' ? (
         <SummaryPage
           dataByLevel={summaryData}
           onOpenLevel={(levelId) => {
@@ -813,7 +907,7 @@ function App() {
           levelLabel={getLevelLabel(selectedLevel)}
           onInitialize={initializeLevel}
         />
-      ) : route === '/dashboard' ? (
+      ) : effectiveRoute === '/dashboard' ? (
         <DashboardPage
           canEdit
           completedCount={completedCount}
@@ -873,6 +967,33 @@ function App() {
           </section>
         </div>
       ) : null}
+    </main>
+  )
+}
+
+function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => boolean }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const ok = onLogin(username, password)
+    if (!ok) setError('ID or password is incorrect.')
+  }
+
+  return (
+    <main className="login-page">
+      <form className="login-panel" onSubmit={submit}>
+        <div>
+          <p className="eyebrow">GM Advanced</p>
+          <h1>Competition Control</h1>
+        </div>
+        <label>ID<input autoFocus value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /></label>
+        <label>Password<input type="password" value={password} autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} /></label>
+        {error ? <p className="login-error">{error}</p> : null}
+        <button className="primary" type="submit">Login</button>
+      </form>
     </main>
   )
 }

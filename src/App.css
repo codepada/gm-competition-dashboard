@@ -57,6 +57,22 @@
   display: none;
 }
 
+.locked-level {
+  display: grid;
+  gap: 2px;
+  min-width: 190px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 7px 10px;
+}
+
+.locked-level strong {
+  color: #1d1d1f;
+  font-size: 14px;
+  line-height: 1.15;
+}
+
 select {
   min-height: 42px;
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -120,6 +136,41 @@ button:disabled {
 .danger {
   background: #d70015;
   color: #ffffff;
+}
+
+.login-page {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  background: #f5f5f7;
+  padding: 18px;
+}
+
+.login-panel {
+  display: grid;
+  width: min(420px, 100%);
+  gap: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 24px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.07);
+}
+
+.login-panel h1 {
+  margin: 4px 0 0;
+  color: #1d1d1f;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.login-error {
+  margin: 0;
+  border-radius: 8px;
+  background: #fff1ef;
+  color: #a42316;
+  padding: 10px 12px;
+  font-weight: 800;
 }
 
 .badge {
@@ -837,13 +888,18 @@ textarea {
     min-width: 0;
   }
 
+  .locked-level {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
   .level-select select {
     width: 100%;
     min-height: 44px;
     font-size: 16px;
   }
 
-  .top-actions .ghost,
+  .top-actions .ghost:not(.logout-button),
   .top-actions .badge {
     display: none;
   }
