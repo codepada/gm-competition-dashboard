@@ -86,11 +86,18 @@
   justify-self: end;
 }
 
+.admin-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: transparent;
+}
+
 .admin-menu {
   position: fixed;
   top: 68px;
   right: 16px;
-  z-index: 1000;
+  z-index: 5001;
   display: grid;
   width: min(280px, calc(100vw - 28px));
   gap: 8px;
