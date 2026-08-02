@@ -156,6 +156,46 @@ function formatRemaining(minutes: number) {
   return `${whole} min remaining`
 }
 
+function formatCardDuration(minutes: number) {
+  const totalSeconds = Math.max(0, Math.floor(Math.abs(minutes) * 60))
+  const hours = Math.floor(totalSeconds / 3600)
+  const mins = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const mmss = `${String(mins).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  return hours ? `${String(hours).padStart(2, '0')}:${mmss}` : mmss
+}
+
+function formatCardTime(group: GroupRoundState, finishTime: string, data: CompetitionData, now: Date) {
+  if (group.completedAt) {
+    const completedTime = new Date(group.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return {
+      className: 'completed',
+      primary: `Completed ${completedTime}`,
+      secondary: `by ${group.completedBy || 'Staff'}`,
+    }
+  }
+  if (group.issueNote) {
+    return {
+      className: 'issue',
+      primary: `Issue: ${group.issueNote}`,
+      secondary: '',
+    }
+  }
+  const remaining = minutesUntil(data.settings.competitionDate, finishTime, now)
+  if (remaining < 0) {
+    return {
+      className: 'overdue',
+      primary: `+${formatCardDuration(remaining)} overdue`,
+      secondary: '',
+    }
+  }
+  return {
+    className: remaining <= data.settings.dueSoonMinutes ? 'due-soon' : 'waiting',
+    primary: `${formatCardDuration(remaining)} remaining`,
+    secondary: '',
+  }
+}
+
 function imagePositionStyle(group: { imagePositionX?: number; imagePositionY?: number }) {
   return {
     objectPosition: `${group.imagePositionX ?? 50}% ${group.imagePositionY ?? 50}%`,
@@ -192,6 +232,13 @@ function displayCompetitionTitle(data: CompetitionData, levelId: CompetitionLeve
   return data.settings.competitionName.includes(levelLabel)
     ? data.settings.competitionName
     : `${data.settings.competitionName} · ${levelLabel}`
+}
+
+const dashboardCategoryNames: Record<string, string> = {
+  group1: 'Devices & Smoothness',
+  group2: 'Science & Green Energy',
+  group3: 'Creative Device',
+  group4: 'Overall Design',
 }
 
 function getActiveRound(data: CompetitionData, now: Date) {
@@ -1464,21 +1511,13 @@ function DashboardPage(props: DashboardProps) {
           const group = groupRoundState.groups[groupId]
           const status = computeStatus(group, groupRoundState.finishTime, data, now)
           const configured = group.configured !== false
+          const cardTime = formatCardTime(group, groupRoundState.finishTime, data, now)
+          const categoryName = dashboardCategoryNames[groupId] || data.judgeGroups[groupId].categoryName
           return (
             <article className={`judge-card group-${index + 1} ${configured ? status.toLowerCase() : 'not-configured'}`} key={groupId}>
               <div className="card-head">
-                <div className="judge-image" aria-hidden="true">
-                  {data.judgeGroups[groupId].imageUrl ? (
-                    <img src={data.judgeGroups[groupId].imageUrl} alt="" style={imagePositionStyle(data.judgeGroups[groupId])} />
-                  ) : (
-                    <span>{index + 1}</span>
-                  )}
-                </div>
-                <div>
-                  <span className="label">Judge Group {index + 1}</span>
-                  <h2>{data.judgeGroups[groupId].categoryName}</h2>
-                </div>
-                <span className="status-pill">{configured ? status.replace('_', ' ') : 'Not Configured'}</span>
+                <h2>{categoryName}</h2>
+                <span className={`status-pill ${status.toLowerCase()}`}>{configured ? status.replace('_', ' ') : 'Not Configured'}</span>
               </div>
               <div className="card-round-controls">
                 <button
@@ -1508,13 +1547,14 @@ function DashboardPage(props: DashboardProps) {
                   Next
                 </button>
               </div>
-              <dl className="team-facts">
-                <div><dt>Run Order</dt><dd>{configured ? group.runOrder : '-'}</dd></div>
-                <div><dt>Seat Number</dt><dd>{group.seatNumber}</dd></div>
-                <div><dt>Team</dt><dd>{group.teamName}</dd></div>
-                <div><dt>Deadline</dt><dd>{groupRoundState.finishTime}</dd></div>
-              </dl>
-              <p className="timestamp">{group.completedAt ? `Completed ${new Date(group.completedAt).toLocaleTimeString()} by ${group.completedBy || 'Staff'}` : group.issueNote ? `Issue: ${group.issueNote}` : 'Awaiting confirmation'}</p>
+              <div className="card-main">
+                <strong className="seat-number">{configured ? group.seatNumber : '-'}</strong>
+                <span className="team-name">{group.teamName}</span>
+                <p className={`timestamp ${cardTime.className}`}>
+                  <span>{cardTime.primary}</span>
+                  {cardTime.secondary ? <span>{cardTime.secondary}</span> : null}
+                </p>
+              </div>
               <div className="card-actions">
                 <button className="complete" type="button" disabled={!props.canEdit || !configured || group.completed} onClick={() => props.onComplete(groupId, groupRound)}>Complete</button>
                 <button className="issue" type="button" disabled={!props.canEdit || !configured} onClick={() => props.onIssue(groupId, groupRound)}>Issue</button>

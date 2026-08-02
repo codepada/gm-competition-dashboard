@@ -333,60 +333,77 @@ textarea {
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(280px, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .judge-card {
   position: relative;
   overflow: hidden;
-  display: flex;
-  min-height: 300px;
+  display: grid;
+  min-height: 260px;
+  align-content: start;
+  gap: 12px;
   flex-direction: column;
-  justify-content: space-between;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 18px;
-  padding: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  padding: 16px;
   background: #ffffff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
-  height: 5px;
+  height: 4px;
+}
+
+.judge-card.group-1 {
+  background: #eef6ff;
 }
 
 .judge-card.group-1::before {
-  background: #74b9ff;
+  background: #60a5fa;
+}
+
+.judge-card.group-2 {
+  background: #f2fbf5;
 }
 
 .judge-card.group-2::before {
-  background: #7bd88f;
+  background: #4ade80;
+}
+
+.judge-card.group-3 {
+  background: #f8f3ff;
 }
 
 .judge-card.group-3::before {
-  background: #c7a0ff;
+  background: #a78bfa;
+}
+
+.judge-card.group-4 {
+  background: #fff7ed;
 }
 
 .judge-card.group-4::before {
-  background: #ffb36b;
+  background: #fb923c;
 }
 
 .judge-card.due_soon {
-  box-shadow: 0 0 0 2px rgba(215, 168, 19, 0.22), 0 2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.completed {
-  box-shadow: 0 0 0 2px rgba(36, 138, 61, 0.22), 0 2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.overdue {
-  box-shadow: 0 0 0 2px rgba(215, 0, 21, 0.22), 0 2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.issue {
-  box-shadow: 0 0 0 2px rgba(191, 91, 0, 0.22), 0 2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.22), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.not-configured {
@@ -396,36 +413,16 @@ textarea {
 
 .card-head {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.judge-image {
-  display: grid;
-  width: 96px;
-  height: 96px;
-  overflow: hidden;
-  place-items: center;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 50%;
-  background: #f5f5f7;
-  color: #64748b;
-  font-weight: 900;
-}
-
-.judge-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
 }
 
 .card-round-controls {
   display: grid;
   grid-template-columns: minmax(62px, 0.85fr) minmax(54px, 0.55fr) minmax(62px, 0.85fr);
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-top: 12px;
 }
 
 .round-input-label {
@@ -433,14 +430,18 @@ textarea {
 }
 
 .card-round-controls button {
-  min-height: 38px;
-  padding: 7px 8px;
+  min-height: 34px;
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .card-round-controls input {
-  min-height: 38px;
-  padding: 7px 8px;
+  min-height: 34px;
+  border-radius: 10px;
+  padding: 6px 8px;
   text-align: center;
+  font-size: 13px;
 }
 
 .card-head h2,
@@ -452,81 +453,129 @@ textarea {
   line-height: 1.18;
 }
 
+.card-head h2 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.judge-card.group-1 .card-head h2 {
+  color: #1d4ed8;
+}
+
+.judge-card.group-2 .card-head h2 {
+  color: #15803d;
+}
+
+.judge-card.group-3 .card-head h2 {
+  color: #7c3aed;
+}
+
+.judge-card.group-4 .card-head h2 {
+  color: #c2410c;
+}
+
 .status-pill {
-  justify-self: start;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.1);
-  padding: 5px 10px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 5px 9px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.team-facts {
+.status-pill.due_soon {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-pill.completed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill.overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-pill.issue {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.card-main {
   display: grid;
-  gap: 10px;
-  margin: 18px 0;
+  gap: 7px;
+  min-width: 0;
 }
 
-.team-facts div {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 10px;
-}
-
-.team-facts dt {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.team-facts dd {
-  margin: 0;
+.seat-number {
   color: #0f172a;
-  font-size: 20px;
-  font-weight: 900;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.team-name {
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.22;
   overflow-wrap: anywhere;
 }
 
 .timestamp {
-  min-height: 44px;
-  margin: 0 0 12px;
+  display: grid;
+  min-height: 38px;
+  margin: 0;
+  align-content: center;
   color: #475569;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.timestamp.due-soon {
+  color: #b45309;
+}
+
+.timestamp.overdue {
+  color: #b91c1c;
+}
+
+.timestamp.completed {
+  color: #15803d;
+}
+
+.timestamp.issue {
+  color: #c2410c;
 }
 
 .card-actions button {
-  min-height: 48px;
+  min-height: 46px;
 }
 
 .card-actions {
   display: grid;
-  grid-template-columns: minmax(96px, 1fr) minmax(140px, 1.35fr);
-  grid-template-areas:
-    "issue complete"
-    "undo complete";
+  grid-template-columns: minmax(112px, 1.2fr) minmax(72px, 0.8fr) minmax(72px, 0.8fr);
   gap: 8px;
 }
 
 .card-actions .complete {
-  grid-area: complete;
-  min-height: 104px;
-  border-radius: 16px;
-  font-size: 18px;
-}
-
-.card-actions .issue {
-  grid-area: issue;
-}
-
-.card-actions .ghost {
-  grid-area: undo;
+  border-radius: 14px;
+  font-size: 16px;
 }
 
 .card-actions .issue,
 .card-actions .ghost {
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
 }
 
@@ -1311,25 +1360,19 @@ textarea {
 
   .judge-card {
     min-height: auto;
+    gap: 6px;
     padding: 8px;
     border-radius: 14px;
   }
 
   .card-head {
-    grid-template-columns: 76px minmax(0, 1fr) auto;
-    gap: 8px;
-  }
-
-  .judge-image {
-    width: 76px;
-    height: 76px;
-    font-size: 20px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
   }
 
   .card-round-controls {
     grid-template-columns: minmax(42px, 0.9fr) minmax(34px, 0.6fr) minmax(42px, 0.9fr);
     gap: 4px;
-    margin-top: 6px;
   }
 
   .card-round-controls button,
@@ -1340,75 +1383,56 @@ textarea {
   }
 
   .card-head h2 {
-    display: none;
     overflow: hidden;
-    font-size: 10px;
-    line-height: 1.14;
+    font-size: 12px;
+    line-height: 1.12;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 1;
+    display: -webkit-box;
   }
 
   .status-pill {
-    padding: 3px 6px;
-    font-size: 9px;
+    padding: 3px 5px;
+    font-size: 8px;
   }
 
-  .team-facts {
-    display: block;
-    margin: 5px 0;
+  .card-main {
+    gap: 3px;
   }
 
-  .team-facts div {
-    display: none;
+  .seat-number {
+    font-size: 20px;
   }
 
-  .team-facts div:nth-child(2),
-  .team-facts div:nth-child(3) {
-    display: block;
-  }
-
-  .team-facts dd {
+  .team-name {
     display: -webkit-box;
     overflow: hidden;
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1.14;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-
-  .team-facts div:nth-child(2) dd {
-    font-size: 20px;
-    line-height: 1;
-  }
-
-  .team-facts div:nth-child(3) dd {
-    font-size: 12px;
     -webkit-line-clamp: 2;
   }
 
   .timestamp {
-    display: none;
+    min-height: 26px;
+    font-size: 10px;
   }
 
   .card-actions {
     display: grid;
-    grid-template-columns: minmax(56px, 0.85fr) minmax(76px, 1.25fr);
-    grid-template-areas:
-      "issue complete"
-      "undo complete";
+    grid-template-columns: minmax(70px, 1.2fr) minmax(42px, 0.8fr) minmax(42px, 0.8fr);
     gap: 4px;
   }
 
   .card-actions button {
-    min-height: 32px;
+    min-height: 30px;
     padding: 5px 2px;
     font-size: 10px;
   }
 
   .card-actions .complete {
-    min-height: 68px;
     border-radius: 12px;
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .save-line,
@@ -1462,47 +1486,42 @@ textarea {
   .judge-card {
     padding: 5px;
     border-radius: 12px;
+    gap: 4px;
   }
 
   .card-head {
-    grid-template-columns: 62px minmax(0, 1fr) auto;
-  }
-
-  .judge-image {
-    width: 62px;
-    height: 62px;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .card-head h2 {
+    font-size: 10px;
+    -webkit-line-clamp: 1;
+  }
+
+  .status-pill {
+    font-size: 8px;
+  }
+
+  .seat-number {
+    font-size: 18px;
+  }
+
+  .team-name {
     font-size: 11px;
     -webkit-line-clamp: 1;
   }
 
-  .team-facts {
-    margin: 4px 0;
-  }
-
-  .team-facts div {
-    grid-template-columns: 45px 1fr;
-  }
-
-  .team-facts dt,
-  .status-pill {
+  .timestamp {
+    min-height: 22px;
     font-size: 9px;
   }
 
-  .team-facts dd {
-    font-size: 12px;
-    -webkit-line-clamp: 1;
-  }
-
   .card-actions button {
-    min-height: 30px;
+    min-height: 28px;
     font-size: 9px;
   }
 
   .card-actions .complete {
-    min-height: 62px;
     font-size: 12px;
   }
 }
