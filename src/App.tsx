@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import './App.css'
 import logoUrl from './assets/logo.png'
 import {
@@ -48,6 +48,9 @@ type IssueDialogState = {
   groupId: string
   note: string
 } | null
+type AudioWindow = typeof window & {
+  webkitAudioContext?: typeof AudioContext
+}
 
 const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; staffName: string }> = {
   wgm2026: { password: '1122', role: 'admin', staffName: 'Admin' },
@@ -328,6 +331,40 @@ function downloadFile(filename: string, content: string, type: string) {
   URL.revokeObjectURL(url)
 }
 
+function issueKeysByLevel(dataByLevel: Record<CompetitionLevelId, CompetitionData | null>) {
+  return new Set(Object.entries(dataByLevel).flatMap(([levelId, levelData]) => {
+    if (!levelData) return []
+    return Object.entries(levelData.rounds).flatMap(([roundKey, round]) =>
+      Object.entries(round.groups)
+        .filter(([, group]) => group.status === 'ISSUE')
+        .map(([groupId, group]) => `${levelId}:${roundKey}:${groupId}:${group.issueAt || group.updatedAt || group.issueNote || 'issue'}`),
+    )
+  }))
+}
+
+function playIssueAlert() {
+  const AudioContextCtor = window.AudioContext || (window as AudioWindow).webkitAudioContext
+  if (!AudioContextCtor) return
+  const audioContext = new AudioContextCtor()
+  const gain = audioContext.createGain()
+  gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.12, audioContext.currentTime + 0.02)
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.55)
+  gain.connect(audioContext.destination)
+
+  ;[0, 0.18].forEach((offset) => {
+    const oscillator = audioContext.createOscillator()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime + offset)
+    oscillator.connect(gain)
+    oscillator.start(audioContext.currentTime + offset)
+    oscillator.stop(audioContext.currentTime + offset + 0.12)
+  })
+  window.setTimeout(() => {
+    void audioContext.close()
+  }, 800)
+}
+
 function App() {
   const [session, setSession] = useState<AppSession | null>(readSession)
   const [route, setRoute] = useState<Route>(getRoute)
@@ -352,6 +389,7 @@ function App() {
     'junior-high-school': readCachedCompetition('junior-high-school'),
     'senior-high-school': readCachedCompetition('senior-high-school'),
   }))
+  const knownIssueKeys = useRef<Set<string> | null>(null)
   const [groupRounds, setGroupRounds] = useState<Record<string, number>>(() => {
     const initialRound = data.settings.followCurrentTime ? getActiveRound(data, now) : data.settings.currentRound
     return Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, initialRound]))
@@ -455,6 +493,32 @@ function App() {
       unsubscribers.forEach((unsubscribe) => unsubscribe())
     }
   }, [])
+
+  useEffect(() => {
+    if (!isAdmin) {
+      knownIssueKeys.current = null
+      return
+    }
+
+    const currentIssueKeys = issueKeysByLevel(summaryData)
+    if (!knownIssueKeys.current) {
+      knownIssueKeys.current = currentIssueKeys
+      return
+    }
+
+    const hasNewIssue = [...currentIssueKeys].some((issueKey) => !knownIssueKeys.current?.has(issueKey))
+    knownIssueKeys.current = currentIssueKeys
+    if (!hasNewIssue) return
+
+    const soundEnabled = Object.values(summaryData).some((levelData) => levelData?.settings.soundEnabled)
+    if (!soundEnabled) return
+
+    try {
+      playIssueAlert()
+    } catch {
+      // Browsers may block audio when the tab has not been interacted with.
+    }
+  }, [isAdmin, summaryData])
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 1000)
