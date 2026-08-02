@@ -46,6 +46,11 @@ type AppSession = {
 type AudioWindow = typeof window & {
   webkitAudioContext?: typeof AudioContext
 }
+type IssueTarget = {
+  groupId: string
+  key: string
+  levelId: CompetitionLevelId
+}
 
 const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; staffName: string }> = {
   wgm2026: { password: '1122', role: 'admin', staffName: 'Admin' },
@@ -326,15 +331,19 @@ function downloadFile(filename: string, content: string, type: string) {
   URL.revokeObjectURL(url)
 }
 
-function issueKeysByLevel(dataByLevel: Record<CompetitionLevelId, CompetitionData | null>) {
-  return new Set(Object.entries(dataByLevel).flatMap(([levelId, levelData]) => {
+function issueTargetsByLevel(dataByLevel: Record<CompetitionLevelId, CompetitionData | null>) {
+  return Object.entries(dataByLevel).flatMap(([levelId, levelData]) => {
     if (!levelData) return []
     return Object.entries(levelData.rounds).flatMap(([roundKey, round]) =>
       Object.entries(round.groups)
         .filter(([, group]) => group.status === 'ISSUE')
-        .map(([groupId, group]) => `${levelId}:${roundKey}:${groupId}:${group.issueAt || group.updatedAt || group.issueNote || 'issue'}`),
+        .map(([groupId, group]) => ({
+          groupId,
+          key: `${levelId}:${roundKey}:${groupId}:${group.issueAt || group.updatedAt || group.issueNote || 'issue'}`,
+          levelId: levelId as CompetitionLevelId,
+        })),
     )
-  }))
+  })
 }
 
 function playIssueAlert(volume = 0.12) {
@@ -379,6 +388,7 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [staffName, setStaffName] = useState(() => localStorage.getItem(staffNameKey) || '')
   const [firebaseDiagnostics, setFirebaseDiagnostics] = useState<FirebaseDiagnostics>(getInitialFirebaseDiagnostics)
+  const [recentIssueTarget, setRecentIssueTarget] = useState<IssueTarget | null>(null)
   const [summaryData, setSummaryData] = useState<Record<CompetitionLevelId, CompetitionData | null>>(() => ({
     'elementary-school': readCachedCompetition('elementary-school'),
     'junior-high-school': readCachedCompetition('junior-high-school'),
@@ -495,15 +505,17 @@ function App() {
       return
     }
 
-    const currentIssueKeys = issueKeysByLevel(summaryData)
+    const currentIssueTargets = issueTargetsByLevel(summaryData)
+    const currentIssueKeys = new Set(currentIssueTargets.map((issue) => issue.key))
     if (!knownIssueKeys.current) {
       knownIssueKeys.current = currentIssueKeys
       return
     }
 
-    const hasNewIssue = [...currentIssueKeys].some((issueKey) => !knownIssueKeys.current?.has(issueKey))
+    const newIssue = currentIssueTargets.find((issue) => !knownIssueKeys.current?.has(issue.key))
     knownIssueKeys.current = currentIssueKeys
-    if (!hasNewIssue) return
+    if (!newIssue) return
+    setRecentIssueTarget(newIssue)
 
     const soundEnabled = Object.values(summaryData).some((levelData) => levelData?.settings.soundEnabled)
     if (!soundEnabled) return
@@ -1165,6 +1177,7 @@ function App() {
       {effectiveRoute === '/summary' ? (
         <SummaryPage
           dataByLevel={summaryData}
+          latestIssueTarget={recentIssueTarget}
           onClearIssue={clearIssueFromSummary}
           onOpenDashboard={() => goTo('/dashboard')}
           onOpenLevel={(levelId) => {
@@ -1399,17 +1412,33 @@ function summarizeLevel(data: CompetitionData | null, levelId?: CompetitionLevel
 
 function SummaryPage({
   dataByLevel,
+  latestIssueTarget,
   onClearIssue,
   onOpenDashboard,
   onOpenLevel,
 }: {
   dataByLevel: Record<CompetitionLevelId, CompetitionData | null>
+  latestIssueTarget: IssueTarget | null
   onClearIssue: (levelId: CompetitionLevelId, round: number, groupId: string) => void
   onOpenDashboard: () => void
   onOpenLevel: (levelId: CompetitionLevelId) => void
 }) {
   const [openIssueGroup, setOpenIssueGroup] = useState<{ groupId: string; levelId: CompetitionLevelId } | null>(null)
   const [clearedIssueKeys, setClearedIssueKeys] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    if (!latestIssueTarget) return
+    setClearedIssueKeys((current) => {
+      if (!current.has(latestIssueTarget.key)) return current
+      const next = new Set(current)
+      next.delete(latestIssueTarget.key)
+      return next
+    })
+    setOpenIssueGroup({
+      groupId: latestIssueTarget.groupId,
+      levelId: latestIssueTarget.levelId,
+    })
+  }, [latestIssueTarget])
 
   useEffect(() => {
     if (!openIssueGroup) return
