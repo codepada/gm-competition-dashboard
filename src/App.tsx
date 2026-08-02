@@ -1316,12 +1316,17 @@ type IssueSummary = {
   groupId: string
   groupLabel: string
   issueNote?: string
+  key: string
   round: number
   seatNumber: string
   teamName: string
 }
 
-function summarizeLevel(data: CompetitionData | null) {
+function summaryIssueKey(levelId: CompetitionLevelId, round: number, groupId: string, seatNumber: string, marker = 'issue') {
+  return `${levelId}:round-${round}:${groupId}:${seatNumber}:${marker}`
+}
+
+function summarizeLevel(data: CompetitionData | null, levelId?: CompetitionLevelId, clearedIssueKeys = new Set<string>()) {
   if (!data) return null
 
   const issueSummaries: IssueSummary[] = []
@@ -1339,15 +1344,22 @@ function summarizeLevel(data: CompetitionData | null) {
       })).filter((entry) => entry.group?.configured !== false)
       : []
     const completed = entries.filter((entry) => entry.group.completed).length
-    const issues = entries.filter((entry) => entry.group.status === 'ISSUE').length
-    entries
-      .filter((entry) => entry.group.status === 'ISSUE')
-      .forEach((entry) => {
+    const issueEntries = entries.filter((entry) => {
+      if (entry.group.status !== 'ISSUE') return false
+      if (!levelId) return true
+      return !clearedIssueKeys.has(summaryIssueKey(levelId, entry.round, groupId, entry.group.seatNumber, entry.group.issueAt || entry.group.updatedAt || entry.group.issueNote))
+    })
+    const issues = issueEntries.length
+    issueEntries.forEach((entry) => {
+        const key = levelId
+          ? summaryIssueKey(levelId, entry.round, groupId, entry.group.seatNumber, entry.group.issueAt || entry.group.updatedAt || entry.group.issueNote)
+          : `${groupId}-${entry.round}-${entry.group.seatNumber}`
         issueSummaries.push({
           categoryName: data.judgeGroups[groupId]?.categoryName || entry.group.categoryName,
           groupId,
           groupLabel: `Judge Group ${index + 1}`,
           issueNote: entry.group.issueNote,
+          key,
           round: entry.round,
           seatNumber: entry.group.seatNumber,
           teamName: entry.group.teamName,
@@ -1397,10 +1409,11 @@ function SummaryPage({
   onOpenLevel: (levelId: CompetitionLevelId) => void
 }) {
   const [openIssueGroup, setOpenIssueGroup] = useState<{ groupId: string; levelId: CompetitionLevelId } | null>(null)
+  const [clearedIssueKeys, setClearedIssueKeys] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     if (!openIssueGroup) return
-    const summary = summarizeLevel(dataByLevel[openIssueGroup.levelId])
+    const summary = summarizeLevel(dataByLevel[openIssueGroup.levelId], openIssueGroup.levelId, clearedIssueKeys)
     if (!summary) {
       setOpenIssueGroup(null)
       return
@@ -1409,7 +1422,7 @@ function SummaryPage({
       openIssueGroup.groupId === 'all' || issue.groupId === openIssueGroup.groupId,
     )
     if (!visibleIssues.length) setOpenIssueGroup(null)
-  }, [dataByLevel, openIssueGroup])
+  }, [clearedIssueKeys, dataByLevel, openIssueGroup])
 
   return (
     <section className="page summary-page">
@@ -1424,7 +1437,7 @@ function SummaryPage({
       <div className="summary-board">
         {competitionLevels.map((level) => {
           const data = dataByLevel[level.id]
-          const summary = summarizeLevel(data)
+          const summary = summarizeLevel(data, level.id, clearedIssueKeys)
 
           if (!data || !summary) {
             return (
@@ -1505,7 +1518,16 @@ function SummaryPage({
                           <strong>{issue.seatNumber} · {issue.teamName}</strong>
                           <em>{issue.issueNote || issue.categoryName}</em>
                         </button>
-                        <button className="ghost clear-issue-button" type="button" onClick={() => onClearIssue(level.id, issue.round, issue.groupId)}>Clear Issue</button>
+                        <button
+                          className="ghost clear-issue-button"
+                          type="button"
+                          onClick={() => {
+                            setClearedIssueKeys((current) => new Set(current).add(issue.key))
+                            onClearIssue(level.id, issue.round, issue.groupId)
+                          }}
+                        >
+                          Clear Issue
+                        </button>
                       </div>
                     ))}
                 </div>
