@@ -43,11 +43,6 @@ type AppSession = {
   role: UserRole
   levelId?: CompetitionLevelId
 }
-type IssueDialogState = {
-  round: number
-  groupId: string
-  note: string
-} | null
 type AudioWindow = typeof window & {
   webkitAudioContext?: typeof AudioContext
 }
@@ -379,7 +374,6 @@ function App() {
   const [levelHasData, setLevelHasData] = useState(true)
   const [online, setOnline] = useState(navigator.onLine)
   const [now, setNow] = useState(new Date())
-  const [issueDialog, setIssueDialog] = useState<IssueDialogState>(null)
   const [csvPreview, setCsvPreview] = useState<Team[]>([])
   const [saveMessage, setSaveMessage] = useState('Local data ready')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -844,16 +838,18 @@ function App() {
     }, 'Completion cleared')
   }
 
-  function saveIssue() {
-    if (!issueDialog) return
-    if (currentRoundState?.groups[issueDialog.groupId]?.configured === false) return
+  function handleIssue(groupId: string, round: number) {
+    const roundState = data.rounds[`round-${round}`]
+    if (!roundState) return
+    if (roundState.groups[groupId]?.configured === false) return
     updateData((current) => {
-      const roundKey = `round-${issueDialog.round}`
-      const group = current.rounds[roundKey].groups[issueDialog.groupId]
+      const roundKey = `round-${round}`
+      const group = current.rounds[roundKey].groups[groupId]
+      const issueNote = 'Help requested'
       const nextGroup = {
         ...group,
         status: 'ISSUE' as const,
-        issueNote: issueDialog.note.trim(),
+        issueNote,
         issueAt: nowIso(),
         updatedAt: nowIso(),
       }
@@ -865,14 +861,13 @@ function App() {
             ...current.rounds[roundKey],
             groups: {
               ...current.rounds[roundKey].groups,
-              [issueDialog.groupId]: nextGroup,
+              [groupId]: nextGroup,
             },
           },
         },
       }
-      return addLog(next, makeLog('ISSUE', issueDialog.round, issueDialog.groupId, staffName, nextGroup, issueDialog.note.trim(), group, nextGroup))
+      return addLog(next, makeLog('ISSUE', round, groupId, staffName, nextGroup, issueNote, group, nextGroup))
     }, 'Issue saved')
-    setIssueDialog(null)
   }
 
   function changeRound(round: number) {
@@ -1201,7 +1196,7 @@ function App() {
               [groupId]: Math.min(Math.max(1, round), data.settings.totalRounds),
             }))
           }}
-          onIssue={(groupId, round) => setIssueDialog({ round, groupId, note: '' })}
+          onIssue={handleIssue}
           onFollowCurrentTime={setFollowCurrentTime}
           onOpenSummary={isAdmin ? () => goTo('/summary') : undefined}
           onResetRound={resetCurrentRound}
@@ -1235,24 +1230,6 @@ function App() {
         />
       )}
 
-      {issueDialog ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="modal" role="dialog" aria-modal="true" aria-label="Issue note">
-            <h2>Record Issue</h2>
-            <textarea
-              autoFocus
-              value={issueDialog.note}
-              maxLength={160}
-              placeholder="Short note for Head Staff records"
-              onChange={(event) => setIssueDialog({ ...issueDialog, note: event.target.value })}
-            />
-            <div className="modal-actions">
-              <button className="ghost" type="button" onClick={() => setIssueDialog(null)}>Cancel</button>
-              <button className="issue" type="button" onClick={saveIssue}>Save Issue</button>
-            </div>
-          </section>
-        </div>
-      ) : null}
     </main>
   )
 }
@@ -1420,6 +1397,19 @@ function SummaryPage({
   onOpenLevel: (levelId: CompetitionLevelId) => void
 }) {
   const [openIssueGroup, setOpenIssueGroup] = useState<{ groupId: string; levelId: CompetitionLevelId } | null>(null)
+
+  useEffect(() => {
+    if (!openIssueGroup) return
+    const summary = summarizeLevel(dataByLevel[openIssueGroup.levelId])
+    if (!summary) {
+      setOpenIssueGroup(null)
+      return
+    }
+    const visibleIssues = summary.issueSummaries.filter((issue) =>
+      openIssueGroup.groupId === 'all' || issue.groupId === openIssueGroup.groupId,
+    )
+    if (!visibleIssues.length) setOpenIssueGroup(null)
+  }, [dataByLevel, openIssueGroup])
 
   return (
     <section className="page summary-page">
