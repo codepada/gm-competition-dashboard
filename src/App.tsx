@@ -342,13 +342,14 @@ function issueKeysByLevel(dataByLevel: Record<CompetitionLevelId, CompetitionDat
   }))
 }
 
-function playIssueAlert() {
+function playIssueAlert(volume = 0.12) {
   const AudioContextCtor = window.AudioContext || (window as AudioWindow).webkitAudioContext
   if (!AudioContextCtor) return
   const audioContext = new AudioContextCtor()
   const gain = audioContext.createGain()
+  const peakVolume = Math.max(0.0001, volume)
   gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.12, audioContext.currentTime + 0.02)
+  gain.gain.exponentialRampToValueAtTime(peakVolume, audioContext.currentTime + 0.02)
   gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.55)
   gain.connect(audioContext.destination)
 
@@ -519,6 +520,23 @@ function App() {
       // Browsers may block audio when the tab has not been interacted with.
     }
   }, [isAdmin, summaryData])
+
+  useEffect(() => {
+    if (!isAdmin) return () => undefined
+    const unlockAudio = () => {
+      try {
+        playIssueAlert(0.0001)
+      } catch {
+        // The next real alert can try again if the browser still blocks audio.
+      }
+    }
+    window.addEventListener('pointerdown', unlockAudio, { once: true })
+    window.addEventListener('keydown', unlockAudio, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+    }
+  }, [isAdmin])
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 1000)
@@ -1158,7 +1176,6 @@ function App() {
             changeLevel(levelId)
             navigate('/dashboard')
           }}
-          onOpenSummary={() => goTo('/summary')}
         />
       ) : !levelHasData ? (
         <EmptyLevel
@@ -1186,11 +1203,9 @@ function App() {
           }}
           onIssue={(groupId, round) => setIssueDialog({ round, groupId, note: '' })}
           onFollowCurrentTime={setFollowCurrentTime}
-          onLevelChange={(levelId) => changeLevel(levelId)}
           onOpenSummary={isAdmin ? () => goTo('/summary') : undefined}
           onResetRound={resetCurrentRound}
           onRoundChange={changeRound}
-          selectedLevel={selectedLevel}
           onUndo={handleUndo}
           saveMessage={saveMessage}
           staffName={staffName}
@@ -1284,13 +1299,11 @@ type DashboardProps = {
   onFollowCurrentTime: (follow: boolean) => void
   onGroupRoundChange: (groupId: string, round: number) => void
   onIssue: (groupId: string, round: number) => void
-  onLevelChange?: (levelId: CompetitionLevelId) => void
   onOpenSummary?: () => void
   onResetRound: () => void
   onRoundChange: (round: number) => void
   onUndo: (groupId: string, round: number) => void
   saveMessage: string
-  selectedLevel?: CompetitionLevelId
   staffName: string
 }
 
@@ -1400,13 +1413,11 @@ function SummaryPage({
   onClearIssue,
   onOpenDashboard,
   onOpenLevel,
-  onOpenSummary,
 }: {
   dataByLevel: Record<CompetitionLevelId, CompetitionData | null>
   onClearIssue: (levelId: CompetitionLevelId, round: number, groupId: string) => void
   onOpenDashboard: () => void
   onOpenLevel: (levelId: CompetitionLevelId) => void
-  onOpenSummary: () => void
 }) {
   const [openIssueGroup, setOpenIssueGroup] = useState<{ groupId: string; levelId: CompetitionLevelId } | null>(null)
 
@@ -1514,36 +1525,20 @@ function SummaryPage({
         })}
       </div>
       <AdminBottomNav
-        left={{ label: 'Dashboard', onClick: onOpenDashboard }}
-        right={{ label: 'Summary', onClick: onOpenSummary, active: true }}
+        right={{ label: 'Dashboard', onClick: onOpenDashboard }}
       />
     </section>
   )
 }
 
 function AdminBottomNav({
-  left,
   right,
 }: {
-  left?: { label: string; onClick: () => void; active?: boolean } | { selectedLevel: CompetitionLevelId; onLevelChange: (levelId: CompetitionLevelId) => void }
   right: { label: string; onClick: () => void; active?: boolean }
 }) {
-  const leftIsSelect = left && 'selectedLevel' in left
   return (
     <div className="admin-card-nav" aria-label="Admin quick navigation">
-      {leftIsSelect ? (
-        <label className="admin-bottom-level">
-          <select value={left.selectedLevel} onChange={(event) => left.onLevelChange(event.target.value as CompetitionLevelId)}>
-            {competitionLevels.map((level) => (
-              <option key={level.id} value={level.id}>{level.label}</option>
-            ))}
-          </select>
-        </label>
-      ) : left ? (
-        <button className={left.active ? 'admin-nav-button active' : 'admin-nav-button'} type="button" onClick={left.onClick}>{left.label}</button>
-      ) : (
-        <span></span>
-      )}
+      <span></span>
       <button className={right.active ? 'admin-nav-button active' : 'admin-nav-button'} type="button" onClick={right.onClick}>{right.label}</button>
     </div>
   )
@@ -1686,10 +1681,6 @@ function DashboardPage(props: DashboardProps) {
 
       {props.onOpenSummary ? (
         <AdminBottomNav
-          left={props.onLevelChange && props.selectedLevel ? {
-            selectedLevel: props.selectedLevel,
-            onLevelChange: props.onLevelChange,
-          } : undefined}
           right={{ label: 'Summary', onClick: props.onOpenSummary }}
         />
       ) : null}
