@@ -1516,6 +1516,13 @@ function DashboardPage(props: DashboardProps) {
           return (
             <article className={`judge-card group-${index + 1} ${configured ? status.toLowerCase() : 'not-configured'}`} key={groupId}>
               <div className="card-head">
+                <div className="judge-image" aria-hidden="true">
+                  {data.judgeGroups[groupId].imageUrl ? (
+                    <img src={data.judgeGroups[groupId].imageUrl} alt="" style={imagePositionStyle(data.judgeGroups[groupId])} />
+                  ) : (
+                    <span>{index + 1}</span>
+                  )}
+                </div>
                 <h2>{categoryName}</h2>
                 <span className={`status-pill ${status.toLowerCase()}`}>{configured ? status.replace('_', ' ') : 'Not Configured'}</span>
               </div>
