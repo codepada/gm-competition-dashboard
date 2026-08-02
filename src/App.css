@@ -373,51 +373,51 @@ textarea {
 }
 
 .judge-card.group-1 {
-  background: #eef6ff;
+  background: #f8fbff;
 }
 
 .judge-card.group-1::before {
-  background: #60a5fa;
+  background: #93bde8;
 }
 
 .judge-card.group-2 {
-  background: #f2fbf5;
+  background: #f8fcf9;
 }
 
 .judge-card.group-2::before {
-  background: #4ade80;
+  background: #91cda0;
 }
 
 .judge-card.group-3 {
-  background: #f8f3ff;
+  background: #fbf9ff;
 }
 
 .judge-card.group-3::before {
-  background: #a78bfa;
+  background: #b7a7df;
 }
 
 .judge-card.group-4 {
-  background: #fff7ed;
+  background: #fffaf5;
 }
 
 .judge-card.group-4::before {
-  background: #fb923c;
+  background: #d8ad82;
 }
 
 .judge-card.due_soon {
-  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2), 0 4px 14px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0 0 1px rgba(180, 83, 9, 0.12), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.completed {
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18), 0 4px 14px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0 0 1px rgba(21, 128, 61, 0.12), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.overdue {
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18), 0 4px 14px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0 0 1px rgba(185, 28, 28, 0.12), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.issue {
-  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.22), 0 4px 14px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0 0 1px rgba(194, 65, 12, 0.14), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.not-configured {
@@ -493,19 +493,19 @@ textarea {
 }
 
 .judge-card.group-1 .card-head h2 {
-  color: #1d4ed8;
+  color: #315f93;
 }
 
 .judge-card.group-2 .card-head h2 {
-  color: #15803d;
+  color: #37744a;
 }
 
 .judge-card.group-3 .card-head h2 {
-  color: #7c3aed;
+  color: #66518f;
 }
 
 .judge-card.group-4 .card-head h2 {
-  color: #c2410c;
+  color: #8a5b32;
 }
 
 .status-pill {
