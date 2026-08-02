@@ -1184,6 +1184,8 @@ function App() {
           }}
           onIssue={(groupId, round) => setIssueDialog({ round, groupId, note: '' })}
           onFollowCurrentTime={setFollowCurrentTime}
+          onOpenDashboard={() => goTo('/dashboard')}
+          onOpenSummary={isAdmin ? () => goTo('/summary') : undefined}
           onResetRound={resetCurrentRound}
           onRoundChange={changeRound}
           onUndo={handleUndo}
@@ -1279,6 +1281,8 @@ type DashboardProps = {
   onFollowCurrentTime: (follow: boolean) => void
   onGroupRoundChange: (groupId: string, round: number) => void
   onIssue: (groupId: string, round: number) => void
+  onOpenDashboard?: () => void
+  onOpenSummary?: () => void
   onResetRound: () => void
   onRoundChange: (round: number) => void
   onUndo: (groupId: string, round: number) => void
@@ -1639,6 +1643,13 @@ function DashboardPage(props: DashboardProps) {
           )
         })}
       </div>
+
+      {props.onOpenSummary ? (
+        <div className="admin-card-nav" aria-label="Admin quick navigation">
+          <button className="primary" type="button" onClick={props.onOpenDashboard}>Dashboard</button>
+          <button className="ghost" type="button" onClick={props.onOpenSummary}>Summary</button>
+        </div>
+      ) : null}
 
       <div className="save-line">{props.saveMessage} · Staff: {props.staffName}</div>
       <Timeline data={data} currentRound={currentRound} now={now} />

@@ -418,7 +418,8 @@ textarea {
 
 .judge-card.issue {
   animation: issuePulse 1.1s ease-in-out infinite;
-  box-shadow: 0 0 0 1px rgba(194, 65, 12, 0.14), 0 4px 14px rgba(15, 23, 42, 0.06);
+  border-color: rgba(215, 0, 21, 0.44);
+  box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.24), 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .judge-card.not-configured {
@@ -612,6 +613,18 @@ textarea {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
+}
+
+.admin-card-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-card-nav button {
+  min-height: 48px;
+  border-radius: 14px;
 }
 
 .save-line {
@@ -856,7 +869,8 @@ textarea {
 
 .summary-group-tile.has-issue {
   animation: issuePulse 1.1s ease-in-out infinite;
-  box-shadow: 0 0 0 2px rgba(215, 0, 21, 0.24);
+  border-color: rgba(215, 0, 21, 0.48);
+  box-shadow: 0 0 0 3px rgba(215, 0, 21, 0.24);
 }
 
 .summary-group-tile.selected {
