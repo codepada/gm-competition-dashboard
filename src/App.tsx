@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import './App.css'
+import logoUrl from './assets/logo.png'
 import {
   createDefaultCompetition,
   competitionLevels,
@@ -1021,9 +1022,12 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="title-row">
-          <div>
-            <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
-            <h1>{headerTitle}</h1>
+          <div className="brand-title">
+            <img className="app-logo" src={logoUrl} alt="" />
+            <div>
+              <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
+              <h1>{headerTitle}</h1>
+            </div>
           </div>
           {!isAdmin ? (
             <button className="ghost logout-button" type="button" onClick={handleLogout}>Logout</button>
