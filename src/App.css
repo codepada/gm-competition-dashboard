@@ -622,9 +622,34 @@ textarea {
   margin-top: 12px;
 }
 
-.admin-card-nav button {
+.admin-card-nav button,
+.admin-card-nav select {
+  width: 100%;
   min-height: 48px;
   border-radius: 14px;
+}
+
+.admin-bottom-level {
+  display: block;
+}
+
+.admin-bottom-level select {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  color: #1d1d1f;
+  font-weight: 800;
+}
+
+.admin-nav-button {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  color: #1d1d1f;
+}
+
+.admin-nav-button.active {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: #e8edf3;
+  color: #162033;
 }
 
 .save-line {
