@@ -57,6 +57,7 @@ type IssueTarget = {
 const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; groupId?: string; staffName: string }> = {
   wgm2026: { password: '1122', role: 'admin', staffName: 'Admin' },
   adminf: { password: '1234', role: 'staffLead', staffName: 'Head Staff' },
+  adminu: { password: '1234', role: 'staffLead', staffName: 'Head Staff' },
   adminel: { password: '1234', role: 'adminLevel', levelId: 'elementary-school', staffName: 'Elementary Admin' },
   adminjr: { password: '1234', role: 'adminLevel', levelId: 'junior-high-school', staffName: 'Junior Admin' },
   adminsh: { password: '1234', role: 'adminLevel', levelId: 'senior-high-school', staffName: 'Senior Admin' },
