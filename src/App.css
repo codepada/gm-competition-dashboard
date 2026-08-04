@@ -300,6 +300,59 @@ button:disabled {
   margin: 14px 0 16px;
 }
 
+.staff-timer {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 140px auto;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.035);
+}
+
+.staff-timer strong {
+  display: block;
+  margin-top: 2px;
+  color: #162033;
+  font-size: 44px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}
+
+.staff-timer.finished {
+  border-color: rgba(215, 0, 21, 0.28);
+  background: #fff1ef;
+}
+
+.staff-timer.finished strong {
+  color: #b91c1c;
+}
+
+.staff-timer-actions {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  gap: 8px;
+}
+
+.staff-timer-actions button {
+  min-width: 98px;
+  min-height: 54px;
+  border-radius: 16px;
+  font-size: 18px;
+}
+
+.staff-timer select {
+  min-height: 54px;
+  border-radius: 16px;
+  font-size: 20px;
+  text-align: center;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -1177,6 +1230,13 @@ textarea {
     padding-right: 14px;
   }
 
+  .staff-dashboard {
+    display: grid;
+    gap: clamp(8px, 2.4vw, 12px);
+    padding-left: clamp(10px, 3.2vw, 16px);
+    padding-right: clamp(10px, 3.2vw, 16px);
+  }
+
   .topbar {
     position: sticky;
     top: 0;
@@ -1434,6 +1494,144 @@ textarea {
   .cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .staff-dashboard .cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-timer {
+    z-index: 3;
+    grid-template-columns: minmax(96px, 0.58fr) minmax(168px, 1fr);
+    gap: clamp(8px, 2.4vw, 12px);
+    margin: 10px 0 0;
+    padding: clamp(10px, 3vw, 14px);
+    border-radius: 16px;
+  }
+
+  .staff-timer > div:first-child {
+    grid-column: 1 / -1;
+    display: grid;
+    justify-items: center;
+  }
+
+  .staff-timer label {
+    grid-column: 1;
+  }
+
+  .staff-timer strong {
+    width: 100%;
+    font-size: clamp(46px, 12.8vw, 64px);
+    letter-spacing: 0;
+  }
+
+  .staff-timer-actions {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: minmax(66px, 0.76fr) minmax(96px, 1fr);
+    justify-content: end;
+    gap: 6px;
+    align-self: end;
+  }
+
+  .staff-timer-actions button {
+    width: auto;
+    min-width: 0;
+    min-height: clamp(54px, 13.5vw, 64px);
+    padding: 10px clamp(10px, 2.8vw, 16px);
+    border-radius: 16px;
+    font-size: clamp(16px, 4.2vw, 20px);
+  }
+
+  .staff-timer-actions .primary {
+    min-width: 0;
+  }
+
+  .staff-timer select {
+    min-height: clamp(54px, 13.5vw, 64px);
+    font-size: clamp(18px, 5vw, 24px);
+    font-weight: 900;
+  }
+
+  .staff-dashboard .judge-card {
+    min-height: auto;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .staff-dashboard .card-head {
+    grid-template-columns: clamp(64px, 18vw, 84px) minmax(0, 1fr) auto;
+    gap: clamp(8px, 2.8vw, 12px);
+  }
+
+  .staff-dashboard .judge-image {
+    width: clamp(64px, 18vw, 84px);
+    height: clamp(64px, 18vw, 84px);
+  }
+
+  .staff-dashboard .card-head h2 {
+    font-size: clamp(17px, 4.8vw, 22px);
+    line-height: 1.16;
+    -webkit-line-clamp: 2;
+  }
+
+  .staff-dashboard .status-pill {
+    padding: 6px 9px;
+    font-size: 10px;
+  }
+
+  .staff-dashboard .card-round-controls {
+    grid-template-columns: minmax(78px, 1fr) minmax(66px, 0.66fr) minmax(78px, 1fr);
+    gap: 8px;
+  }
+
+  .staff-dashboard .card-round-controls button,
+  .staff-dashboard .card-round-controls input {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .staff-dashboard .card-main {
+    gap: 7px;
+  }
+
+  .staff-dashboard .seat-number {
+    font-size: clamp(34px, 9.6vw, 44px);
+  }
+
+  .staff-dashboard .team-name {
+    font-size: clamp(19px, 5.2vw, 24px);
+    line-height: 1.18;
+    -webkit-line-clamp: 3;
+  }
+
+  .staff-dashboard .timestamp {
+    min-height: 34px;
+    font-size: clamp(15px, 4.2vw, 18px);
+  }
+
+  .staff-dashboard .card-actions {
+    grid-template-columns: minmax(66px, 0.78fr) minmax(66px, 0.78fr) minmax(128px, 1.45fr);
+    gap: 8px;
+  }
+
+  .staff-dashboard .card-actions .issue {
+    order: 1;
+  }
+
+  .staff-dashboard .card-actions .ghost {
+    order: 2;
+  }
+
+  .staff-dashboard .card-actions .complete {
+    order: 3;
+    font-size: clamp(17px, 4.7vw, 22px);
+  }
+
+  .staff-dashboard .card-actions button {
+    min-height: clamp(52px, 13vw, 62px);
+    padding: 9px 10px;
+    font-size: clamp(14px, 3.9vw, 18px);
   }
 
   .judge-card {

@@ -3,6 +3,7 @@ import './App.css'
 import logoUrl from './assets/logo.png'
 import {
   createDefaultCompetition,
+  createCompetitionForLevel,
   competitionLevels,
   defaultLevelId,
   generateFinishTimes,
@@ -37,11 +38,12 @@ const selectedLevelKey = 'gm-advanced-selected-level'
 const sessionKey = 'gm-advanced-session'
 
 type Route = '/dashboard' | '/summary' | '/setup'
-type UserRole = 'admin' | 'level'
+type UserRole = 'admin' | 'adminLevel' | 'staff'
 type AppSession = {
   username: string
   role: UserRole
   levelId?: CompetitionLevelId
+  groupId?: string
 }
 type AudioWindow = typeof window & {
   webkitAudioContext?: typeof AudioContext
@@ -52,11 +54,23 @@ type IssueTarget = {
   levelId: CompetitionLevelId
 }
 
-const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; staffName: string }> = {
+const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; groupId?: string; staffName: string }> = {
   wgm2026: { password: '1122', role: 'admin', staffName: 'Admin' },
-  senior: { password: '1234', role: 'level', levelId: 'senior-high-school', staffName: 'Senior Staff' },
-  junior: { password: '1234', role: 'level', levelId: 'junior-high-school', staffName: 'Junior Staff' },
-  elementary: { password: '1234', role: 'level', levelId: 'elementary-school', staffName: 'Elementary Staff' },
+  adminel: { password: '1234', role: 'adminLevel', levelId: 'elementary-school', staffName: 'Elementary Admin' },
+  adminjr: { password: '1234', role: 'adminLevel', levelId: 'junior-high-school', staffName: 'Junior Admin' },
+  adminsh: { password: '1234', role: 'adminLevel', levelId: 'senior-high-school', staffName: 'Senior Admin' },
+  dsel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group1', staffName: 'Elementary Devices Staff' },
+  sgel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group2', staffName: 'Elementary Science Staff' },
+  crel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group3', staffName: 'Elementary Creative Staff' },
+  ovel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group4', staffName: 'Elementary Overall Staff' },
+  dsjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group1', staffName: 'Junior Devices Staff' },
+  sgjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group2', staffName: 'Junior Science Staff' },
+  crjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group3', staffName: 'Junior Creative Staff' },
+  ovjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group4', staffName: 'Junior Overall Staff' },
+  dssh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group1', staffName: 'Senior Devices Staff' },
+  sgsh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group2', staffName: 'Senior Science Staff' },
+  crsh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group3', staffName: 'Senior Creative Staff' },
+  ovsh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group4', staffName: 'Senior Overall Staff' },
 }
 
 const redirectedPath = new URLSearchParams(window.location.search).get('redirect')
@@ -169,6 +183,14 @@ function formatCardDuration(minutes: number) {
   return hours ? `${String(hours).padStart(2, '0')}:${mmss}` : mmss
 }
 
+function formatTimerDuration(totalMs: number) {
+  const totalCentiseconds = Math.max(0, Math.ceil(totalMs / 10))
+  const minutes = Math.floor(totalCentiseconds / 6000)
+  const seconds = Math.floor((totalCentiseconds % 6000) / 100)
+  const centiseconds = totalCentiseconds % 100
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(centiseconds).padStart(2, '0')}`
+}
+
 function formatCardTime(group: GroupRoundState, finishTime: string, data: CompetitionData, now: Date) {
   if (group.completedAt) {
     const completedTime = new Date(group.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -255,6 +277,16 @@ function getActiveRound(data: CompetitionData, now: Date) {
 
   const active = rounds.find((round) => now.getTime() <= round.deadline.getTime())
   return active?.roundNumber || rounds[rounds.length - 1]?.roundNumber || 1
+}
+
+function roundForGroupRunOrder(data: CompetitionData, groupId: string, runOrder: number) {
+  const totalRounds = Math.max(1, data.settings.totalRounds)
+  const startRunOrder = Math.min(Math.max(1, data.judgeGroups[groupId]?.startRunOrder || 1), totalRounds)
+  return ((Math.min(Math.max(1, runOrder), totalRounds) - startRunOrder + totalRounds) % totalRounds) + 1
+}
+
+function nextRunOrder(runOrder: number, totalRounds: number, delta: number) {
+  return ((runOrder - 1 + delta + totalRounds) % totalRounds) + 1
 }
 
 function makeLog(
@@ -370,12 +402,35 @@ function playIssueAlert(volume = 0.12) {
   }, 800)
 }
 
+function playTimerAlert(volume = 0.18) {
+  const AudioContextCtor = window.AudioContext || (window as AudioWindow).webkitAudioContext
+  if (!AudioContextCtor) return
+  const audioContext = new AudioContextCtor()
+  const gain = audioContext.createGain()
+  gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), audioContext.currentTime + 0.02)
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 1.4)
+  gain.connect(audioContext.destination)
+
+  ;[0, 0.22, 0.44, 0.8, 1.02].forEach((offset, index) => {
+    const oscillator = audioContext.createOscillator()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(index < 3 ? 1046 : 784, audioContext.currentTime + offset)
+    oscillator.connect(gain)
+    oscillator.start(audioContext.currentTime + offset)
+    oscillator.stop(audioContext.currentTime + offset + 0.16)
+  })
+  window.setTimeout(() => {
+    void audioContext.close()
+  }, 1700)
+}
+
 function App() {
   const [session, setSession] = useState<AppSession | null>(readSession)
   const [route, setRoute] = useState<Route>(getRoute)
   const [selectedLevel, setSelectedLevel] = useState<CompetitionLevelId>(() => {
     const session = readSession()
-    if (session?.role === 'level' && session.levelId) return session.levelId
+    if (session?.levelId) return session.levelId
     const saved = localStorage.getItem(selectedLevelKey) as CompetitionLevelId | null
     return saved && competitionLevels.some((level) => level.id === saved) ? saved : defaultLevelId
   })
@@ -399,11 +454,18 @@ function App() {
     const initialRound = data.settings.followCurrentTime ? getActiveRound(data, now) : data.settings.currentRound
     return Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, initialRound]))
   })
-  const isAdmin = session?.role === 'admin'
+  const isSuperAdmin = session?.role === 'admin'
+  const isAdmin = session?.role === 'admin' || session?.role === 'adminLevel'
+  const isStaff = session?.role === 'staff'
+  const canSetup = isSuperAdmin
+  const visibleGroupIds = useMemo(() => {
+    if (session?.role === 'staff' && session.groupId) return [session.groupId]
+    return [...judgeGroupIds]
+  }, [session])
 
   useEffect(() => {
     if (!session) return
-    if (session.role === 'level' && session.levelId && selectedLevel !== session.levelId) {
+    if (session.levelId && selectedLevel !== session.levelId) {
       setSelectedLevel(session.levelId)
       localStorage.setItem(selectedLevelKey, session.levelId)
     }
@@ -411,10 +473,10 @@ function App() {
 
   useEffect(() => {
     if (!session) return
-    if (!isAdmin && (route === '/setup' || route === '/summary')) {
+    if ((route === '/setup' && !canSetup) || (route === '/summary' && !isAdmin)) {
       navigate('/dashboard')
     }
-  }, [isAdmin, route, session])
+  }, [canSetup, isAdmin, route, session])
 
   useEffect(() => {
     const onPop = () => setRoute(getRoute())
@@ -450,7 +512,7 @@ function App() {
           writeCachedCompetition(selectedLevel, initialData)
           setSaveMessage(created ? 'Initial Firebase data created' : 'Loaded existing Firebase data')
         } else {
-          setData(readCachedCompetition(selectedLevel) || createDefaultCompetition())
+          setData(readCachedCompetition(selectedLevel) || createCompetitionForLevel(selectedLevel))
           setLevelHasData(false)
           setSaveMessage('No competition data has been configured for this level.')
         }
@@ -506,6 +568,7 @@ function App() {
     }
 
     const currentIssueTargets = issueTargetsByLevel(summaryData)
+      .filter((issue) => session?.role !== 'adminLevel' || !session.levelId || issue.levelId === session.levelId)
     const currentIssueKeys = new Set(currentIssueTargets.map((issue) => issue.key))
     if (!knownIssueKeys.current) {
       knownIssueKeys.current = currentIssueKeys
@@ -525,7 +588,7 @@ function App() {
     } catch {
       // Browsers may block audio when the tab has not been interacted with.
     }
-  }, [isAdmin, summaryData])
+  }, [isAdmin, session, summaryData])
 
   useEffect(() => {
     if (!isAdmin) return () => undefined
@@ -662,12 +725,29 @@ function App() {
     ? activeRound
     : Math.min(Math.max(1, data.settings.currentRound), data.settings.totalRounds)
   const currentRoundState = data.rounds[`round-${currentRound}`]
-  const configuredGroupIds = judgeGroupIds.filter((groupId) => currentRoundState?.groups[groupId]?.configured !== false)
+  const configuredGroupIds = visibleGroupIds.filter((groupId) => currentRoundState?.groups[groupId]?.configured !== false)
   const completedCount = configuredGroupIds.filter((groupId) => currentRoundState?.groups[groupId]?.completed).length
   const requiredCount = configuredGroupIds.length
   const deadlineMinutes = currentRoundState
     ? minutesUntil(data.settings.competitionDate, currentRoundState.finishTime, now)
     : 0
+  const staffScheduleKey = useMemo(() => (
+    visibleGroupIds.map((groupId) => {
+      const group = data.judgeGroups[groupId]
+      return `${groupId}:${group?.startRunOrder || 1}:${group?.configured !== false ? 1 : 0}`
+    }).join('|')
+  ), [data.judgeGroups, visibleGroupIds])
+
+  useEffect(() => {
+    if (!isStaff) return
+    setGroupRounds((current) => ({
+      ...current,
+      ...Object.fromEntries(visibleGroupIds.map((groupId) => [
+        groupId,
+        roundForGroupRunOrder(data, groupId, data.judgeGroups[groupId]?.startRunOrder || 1),
+      ])),
+    }))
+  }, [data.settings.totalRounds, isStaff, selectedLevel, staffScheduleKey, visibleGroupIds])
 
   function setAllGroupRounds(round: number) {
     const nextRound = Math.min(Math.max(1, round), data.settings.totalRounds)
@@ -675,13 +755,13 @@ function App() {
   }
 
   function goTo(routeName: Route) {
-    if (!isAdmin && (routeName === '/setup' || routeName === '/summary')) return
+    if ((routeName === '/setup' && !canSetup) || (routeName === '/summary' && !isAdmin)) return
     navigate(routeName)
     setMenuOpen(false)
   }
 
   function changeLevel(levelId: CompetitionLevelId) {
-    if (!isAdmin && session?.levelId) return
+    if (session?.levelId) return
     localStorage.setItem(selectedLevelKey, levelId)
     setSelectedLevel(levelId)
     setGroupRounds(Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, 1])))
@@ -699,6 +779,7 @@ function App() {
       username: normalized,
       role: account.role,
       levelId: account.levelId,
+      groupId: account.groupId,
     }
     localStorage.setItem(sessionKey, JSON.stringify(nextSession))
     localStorage.setItem(staffNameKey, account.staffName)
@@ -785,6 +866,7 @@ function App() {
   }
 
   function handleComplete(groupId: string, round: number) {
+    if (isStaff && session?.groupId !== groupId) return
     const roundState = data.rounds[`round-${round}`]
     if (!roundState) return
     if (roundState.groups[groupId]?.configured === false) return
@@ -818,6 +900,7 @@ function App() {
   }
 
   function handleUndo(groupId: string, round: number) {
+    if (isStaff && session?.groupId !== groupId) return
     const roundState = data.rounds[`round-${round}`]
     if (!roundState) return
     if (roundState.groups[groupId]?.configured === false) return
@@ -851,6 +934,7 @@ function App() {
   }
 
   function handleIssue(groupId: string, round: number) {
+    if (isStaff && session?.groupId !== groupId) return
     const roundState = data.rounds[`round-${round}`]
     if (!roundState) return
     if (roundState.groups[groupId]?.configured === false) return
@@ -906,6 +990,7 @@ function App() {
   }
 
   function resetCurrentRound() {
+    if (!canSetup) return
     if (!window.confirm('Reset all four judging statuses for this round?')) return
     updateData((current) => {
       const roundKey = `round-${currentRound}`
@@ -1106,6 +1191,7 @@ function App() {
 
   const effectiveRoute = !isAdmin && route !== '/dashboard' ? '/dashboard' : route
   const headerTitle = effectiveRoute === '/summary' ? 'GM Advanced' : displayCompetitionTitle(data, selectedLevel)
+  const headerMode = isSuperAdmin ? 'Admin Control' : isAdmin ? 'Level Admin Control' : 'Judge Staff Control'
 
   return (
     <main className="app-shell">
@@ -1114,7 +1200,7 @@ function App() {
           <div className="brand-title">
             <img className="app-logo" src={logoUrl} alt="" />
             <div>
-              <p className="eyebrow">{isAdmin ? 'Admin Control' : 'Judge Staff Control'}</p>
+              <p className="eyebrow">{headerMode}</p>
               <h1>{headerTitle}</h1>
             </div>
           </div>
@@ -1142,17 +1228,21 @@ function App() {
       {isAdmin && menuOpen ? (
         <div className="admin-menu-layer" role="presentation" onClick={() => setMenuOpen(false)}>
           <div className="top-actions admin-menu" role="menu" onClick={(event) => event.stopPropagation()}>
-            <label className="level-select">
-              Level
-              <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
-                {competitionLevels.map((level) => (
-                  <option key={level.id} value={level.id}>{level.label}</option>
-                ))}
-              </select>
-            </label>
+            {isSuperAdmin ? (
+              <label className="level-select">
+                Level
+                <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
+                  {competitionLevels.map((level) => (
+                    <option key={level.id} value={level.id}>{level.label}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <button className={effectiveRoute === '/dashboard' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/dashboard')}>Dashboard</button>
             <button className={effectiveRoute === '/summary' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/summary')}>Summary</button>
-            <button className={effectiveRoute === '/setup' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/setup')}>Setup</button>
+            {canSetup ? (
+              <button className={effectiveRoute === '/setup' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/setup')}>Setup</button>
+            ) : null}
             <button
               className="ghost utility-item"
               type="button"
@@ -1184,6 +1274,7 @@ function App() {
             changeLevel(levelId)
             navigate('/dashboard')
           }}
+          visibleLevelIds={session?.role === 'adminLevel' && session.levelId ? [session.levelId] : undefined}
         />
       ) : !levelHasData ? (
         <EmptyLevel
@@ -1193,7 +1284,7 @@ function App() {
       ) : effectiveRoute === '/dashboard' ? (
         <DashboardPage
           canEdit
-          canReset={isAdmin}
+          canReset={canSetup}
           completedCount={completedCount}
           currentRound={currentRound}
           currentRoundState={currentRoundState}
@@ -1216,7 +1307,9 @@ function App() {
           onRoundChange={changeRound}
           onUndo={handleUndo}
           saveMessage={saveMessage}
+          showTimer={isStaff}
           staffName={staffName}
+          visibleGroupIds={visibleGroupIds}
         />
       ) : (
         <SetupPage
@@ -1294,7 +1387,9 @@ type DashboardProps = {
   onRoundChange: (round: number) => void
   onUndo: (groupId: string, round: number) => void
   saveMessage: string
+  showTimer: boolean
   staffName: string
+  visibleGroupIds: string[]
 }
 
 function EmptyLevel({ levelLabel, onInitialize }: { levelLabel: string; onInitialize: () => void }) {
@@ -1416,15 +1511,20 @@ function SummaryPage({
   onClearIssue,
   onOpenDashboard,
   onOpenLevel,
+  visibleLevelIds,
 }: {
   dataByLevel: Record<CompetitionLevelId, CompetitionData | null>
   latestIssueTarget: IssueTarget | null
   onClearIssue: (levelId: CompetitionLevelId, round: number, groupId: string) => void
   onOpenDashboard: () => void
   onOpenLevel: (levelId: CompetitionLevelId) => void
+  visibleLevelIds?: CompetitionLevelId[]
 }) {
   const [openIssueGroup, setOpenIssueGroup] = useState<{ groupId: string; levelId: CompetitionLevelId } | null>(null)
   const [clearedIssueKeys, setClearedIssueKeys] = useState<Set<string>>(() => new Set())
+  const levels = visibleLevelIds?.length
+    ? competitionLevels.filter((level) => visibleLevelIds.includes(level.id))
+    : competitionLevels
 
   useEffect(() => {
     if (!latestIssueTarget) return
@@ -1457,14 +1557,14 @@ function SummaryPage({
     <section className="page summary-page">
       <div className="summary-hero">
         <div>
-          <p className="eyebrow">All Levels</p>
+          <p className="eyebrow">{visibleLevelIds?.length === 1 ? getLevelLabel(visibleLevelIds[0]) : 'All Levels'}</p>
           <h2>Progress Summary</h2>
         </div>
         <p>Live completion counts for every judge group.</p>
       </div>
 
       <div className="summary-board">
-        {competitionLevels.map((level) => {
+        {levels.map((level) => {
           const data = dataByLevel[level.id]
           const summary = summarizeLevel(data, level.id, clearedIssueKeys)
 
@@ -1587,9 +1687,21 @@ function AdminBottomNav({
 
 function DashboardPage(props: DashboardProps) {
   const { data, currentRound, currentRoundState, completedCount, deadlineMinutes, groupRounds, now } = props
+  const staffGroupId = props.showTimer ? props.visibleGroupIds[0] : undefined
+  const displayRound = staffGroupId
+    ? Math.min(Math.max(1, groupRounds[staffGroupId] || 1), data.settings.totalRounds)
+    : currentRound
+  const displayRoundState = data.rounds[`round-${displayRound}`] || currentRoundState
+  const staffDisplayGroup = staffGroupId ? displayRoundState.groups[staffGroupId] : undefined
+  const displayCompletedCount = staffGroupId
+    ? (displayRoundState.groups[staffGroupId]?.completed ? 1 : 0)
+    : completedCount
+  const displayDeadlineMinutes = displayRoundState
+    ? minutesUntil(data.settings.competitionDate, displayRoundState.finishTime, now)
+    : deadlineMinutes
 
   return (
-    <section className="page">
+    <section className={props.showTimer ? 'page staff-dashboard' : 'page'}>
       <div className="status-strip">
         <div>
           <span className="label">Date</span>
@@ -1600,50 +1712,52 @@ function DashboardPage(props: DashboardProps) {
           <strong>{formatClock(now)}</strong>
         </div>
         <div>
-          <span className="label">Round</span>
-          <strong>{currentRound} / {data.settings.totalRounds}</strong>
+          <span className="label">{props.showTimer ? 'Order' : 'Round'}</span>
+          <strong>{props.showTimer ? staffDisplayGroup?.runOrder || displayRound : displayRound} / {data.settings.totalRounds}</strong>
         </div>
         <div>
           <span className="label">Time Slot</span>
-          <strong>{currentRoundState.startTime} - {currentRoundState.finishTime}</strong>
+          <strong>{displayRoundState.startTime} - {displayRoundState.finishTime}</strong>
         </div>
         <div>
           <span className="label">Deadline</span>
-          <strong>{formatRemaining(deadlineMinutes)}</strong>
+          <strong>{formatRemaining(displayDeadlineMinutes)}</strong>
         </div>
         <div>
           <span className="label">Completion</span>
-          <strong>{completedCount} / {props.requiredCount} completed</strong>
+          <strong>{displayCompletedCount} / {props.requiredCount} completed</strong>
         </div>
       </div>
 
-      <div className="round-controls">
-        <button type="button" className="ghost" disabled={currentRound <= 1} onClick={() => props.onRoundChange(currentRound - 1)}>Previous Round</button>
-        <label>
-          Go to Round
-          <input
-            type="number"
-            min="1"
-            max={data.settings.totalRounds}
-            value={currentRound}
-            onChange={(event) => props.onRoundChange(Number(event.target.value))}
-          />
-        </label>
-        <button type="button" className="ghost" disabled={currentRound >= data.settings.totalRounds} onClick={() => props.onRoundChange(currentRound + 1)}>Next Round</button>
-        <label className="toggle inline-toggle">
-          <input
-            type="checkbox"
-            checked={data.settings.followCurrentTime}
-            onChange={(event) => props.onFollowCurrentTime(event.target.checked)}
-          />
-          Follow Current Time
-        </label>
-        {props.canReset ? (
-          <button type="button" className="danger" disabled={!props.canEdit} onClick={props.onResetRound}>Reset Current Round</button>
-        ) : null}
-      </div>
+      {!props.showTimer ? (
+        <div className="round-controls">
+          <button type="button" className="ghost" disabled={currentRound <= 1} onClick={() => props.onRoundChange(currentRound - 1)}>Previous Round</button>
+          <label>
+            Go to Round
+            <input
+              type="number"
+              min="1"
+              max={data.settings.totalRounds}
+              value={currentRound}
+              onChange={(event) => props.onRoundChange(Number(event.target.value))}
+            />
+          </label>
+          <button type="button" className="ghost" disabled={currentRound >= data.settings.totalRounds} onClick={() => props.onRoundChange(currentRound + 1)}>Next Round</button>
+          <label className="toggle inline-toggle">
+            <input
+              type="checkbox"
+              checked={data.settings.followCurrentTime}
+              onChange={(event) => props.onFollowCurrentTime(event.target.checked)}
+            />
+            Follow Current Time
+          </label>
+          {props.canReset ? (
+            <button type="button" className="danger" disabled={!props.canEdit} onClick={props.onResetRound}>Reset Current Round</button>
+          ) : null}
+        </div>
+      ) : null}
 
-      {completedCount === props.requiredCount ? (
+      {!props.showTimer && completedCount === props.requiredCount ? (
         <div className="all-complete">
           <strong>ALL CONFIGURED JUDGING GROUPS COMPLETED</strong>
           <button type="button" className="primary" disabled={currentRound >= data.settings.totalRounds} onClick={() => props.onRoundChange(currentRound + 1)}>Next Round</button>
@@ -1651,24 +1765,26 @@ function DashboardPage(props: DashboardProps) {
       ) : null}
 
       <div className="cards-grid">
-        {judgeGroupIds
+        {props.visibleGroupIds
           .filter((groupId) => currentRoundState.groups[groupId]?.configured !== false)
           .map((groupId, index) => {
-          const groupRound = Math.min(Math.max(1, groupRounds[groupId] || currentRound), data.settings.totalRounds)
+          const groupRound = Math.min(Math.max(1, groupRounds[groupId] || (props.showTimer ? 1 : currentRound)), data.settings.totalRounds)
           const groupRoundState = data.rounds[`round-${groupRound}`] || currentRoundState
           const group = groupRoundState.groups[groupId]
           const status = computeStatus(group, groupRoundState.finishTime, data, now)
           const configured = group.configured !== false
           const cardTime = formatCardTime(group, groupRoundState.finishTime, data, now)
           const categoryName = dashboardCategoryNames[groupId] || data.judgeGroups[groupId].categoryName
+          const groupNumber = Number(groupId.replace('group', '')) || index + 1
+          const displayOrder = props.showTimer ? group.runOrder : groupRound
           return (
-            <article className={`judge-card group-${index + 1} ${configured ? status.toLowerCase() : 'not-configured'}`} key={groupId}>
+            <article className={`judge-card group-${groupNumber} ${configured ? status.toLowerCase() : 'not-configured'}`} key={groupId}>
               <div className="card-head">
                 <div className="judge-image" aria-hidden="true">
                   {data.judgeGroups[groupId].imageUrl ? (
                     <img src={data.judgeGroups[groupId].imageUrl} alt="" style={imagePositionStyle(data.judgeGroups[groupId])} />
                   ) : (
-                    <span>{index + 1}</span>
+                    <span>{groupNumber}</span>
                   )}
                 </div>
                 <h2>{categoryName}</h2>
@@ -1676,28 +1792,41 @@ function DashboardPage(props: DashboardProps) {
               </div>
               <div className="card-round-controls">
                 <button
-                  className="ghost"
-                  type="button"
-                  disabled={groupRound <= 1}
-                  onClick={() => props.onGroupRoundChange(groupId, groupRound - 1)}
+                    className="ghost"
+                    type="button"
+                    disabled={!props.showTimer && groupRound <= 1}
+                  onClick={() => {
+                    const nextRound = props.showTimer
+                      ? roundForGroupRunOrder(data, groupId, nextRunOrder(group.runOrder, data.settings.totalRounds, -1))
+                      : groupRound - 1
+                    props.onGroupRoundChange(groupId, nextRound)
+                  }}
                 >
                   Prev
                 </button>
                 <label className="round-input-label">
                   <input
-                    aria-label={`Judge Group ${index + 1} round`}
+                    aria-label={props.showTimer ? `Judge Group ${groupNumber} run order` : `Judge Group ${groupNumber} round`}
                     type="number"
                     min="1"
                     max={data.settings.totalRounds}
-                    value={groupRound}
-                    onChange={(event) => props.onGroupRoundChange(groupId, Number(event.target.value))}
+                    value={displayOrder}
+                    onChange={(event) => {
+                      const value = Number(event.target.value)
+                      props.onGroupRoundChange(groupId, props.showTimer ? roundForGroupRunOrder(data, groupId, value) : value)
+                    }}
                   />
                 </label>
                 <button
                   className="ghost"
                   type="button"
-                  disabled={groupRound >= data.settings.totalRounds}
-                  onClick={() => props.onGroupRoundChange(groupId, groupRound + 1)}
+                  disabled={!props.showTimer && groupRound >= data.settings.totalRounds}
+                  onClick={() => {
+                    const nextRound = props.showTimer
+                      ? roundForGroupRunOrder(data, groupId, nextRunOrder(group.runOrder, data.settings.totalRounds, 1))
+                      : groupRound + 1
+                    props.onGroupRoundChange(groupId, nextRound)
+                  }}
                 >
                   Next
                 </button>
@@ -1720,6 +1849,8 @@ function DashboardPage(props: DashboardProps) {
         })}
       </div>
 
+      {props.showTimer ? <StaffTimer /> : null}
+
       {props.onOpenSummary ? (
         <AdminBottomNav
           right={{ label: 'Summary', onClick: props.onOpenSummary }}
@@ -1727,8 +1858,107 @@ function DashboardPage(props: DashboardProps) {
       ) : null}
 
       <div className="save-line">{props.saveMessage} · Staff: {props.staffName}</div>
-      <Timeline data={data} currentRound={currentRound} now={now} />
+      {!props.showTimer ? <Timeline data={data} currentRound={currentRound} now={now} /> : null}
     </section>
+  )
+}
+
+function StaffTimer() {
+  const [minutes, setMinutes] = useState(3)
+  const [durationMs, setDurationMs] = useState(3 * 60 * 1000)
+  const [targetEndAt, setTargetEndAt] = useState<number | null>(null)
+  const [tick, setTick] = useState(Date.now())
+  const [running, setRunning] = useState(false)
+  const alertPlayed = useRef(false)
+  const remainingMs = targetEndAt
+    ? Math.max(0, targetEndAt - tick)
+    : durationMs
+
+  useEffect(() => {
+    if (!running) return () => undefined
+    const interval = window.setInterval(() => {
+      setTick(Date.now())
+    }, 40)
+    return () => window.clearInterval(interval)
+  }, [running])
+
+  useEffect(() => {
+    if (!running || !targetEndAt || remainingMs > 0) return
+    if (!alertPlayed.current) {
+      alertPlayed.current = true
+      try {
+        playTimerAlert()
+      } catch {
+        // Mobile browsers may still block sound if Start was not a trusted interaction.
+      }
+    }
+    setRunning(false)
+    setTargetEndAt(null)
+    setDurationMs(0)
+  }, [remainingMs, running, targetEndAt])
+
+  function applyMinutes(nextMinutes = minutes) {
+    const normalized = Math.min(Math.max(1, Math.round(nextMinutes || 1)), 180)
+    setMinutes(normalized)
+    setDurationMs(normalized * 60 * 1000)
+    setTargetEndAt(null)
+    setRunning(false)
+    alertPlayed.current = false
+  }
+
+  function toggleTimer() {
+    if (running) {
+      setDurationMs(remainingMs)
+      setTargetEndAt(null)
+      setRunning(false)
+      return
+    }
+    alertPlayed.current = false
+    try {
+      playTimerAlert(0.0001)
+    } catch {
+      // This primes mobile audio during the Start tap.
+    }
+    if (remainingMs <= 0) {
+      const nextMs = Math.min(Math.max(1, Math.round(minutes || 1)), 180) * 60 * 1000
+      setDurationMs(nextMs)
+      setTargetEndAt(Date.now() + nextMs)
+    } else {
+      setTargetEndAt(Date.now() + remainingMs)
+    }
+    setTick(Date.now())
+    setRunning(true)
+  }
+
+  const minuteOptions = Array.from({ length: 180 }, (_, index) => index + 1)
+
+  return (
+    <div className={remainingMs === 0 ? 'staff-timer finished' : 'staff-timer'}>
+      <div>
+        <span className="label">Countdown Timer</span>
+        <strong>{formatTimerDuration(remainingMs)}</strong>
+      </div>
+      <label>
+        Minutes
+        <select
+          value={minutes}
+          onChange={(event) => {
+            const nextMinutes = Number(event.target.value)
+            applyMinutes(nextMinutes)
+          }}
+        >
+          {minuteOptions.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+      <div className="staff-timer-actions">
+        <button className="ghost" type="button" onClick={() => applyMinutes()}>Reset</button>
+        <button className="primary" type="button" onClick={toggleTimer}>
+          {running ? 'Pause' : 'Start'}
+        </button>
+      </div>
+    </div>
   )
 }
 
