@@ -1,4 +1,12 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  type Auth,
+  type User,
+} from 'firebase/auth'
 import { getDatabase, get, onValue, ref, remove, serverTimestamp, set, type Database } from 'firebase/database'
 import {
   competitionRoot,
@@ -11,7 +19,17 @@ import {
 
 type FirebaseServices = {
   app: FirebaseApp
+  auth: Auth
   database: Database
+}
+
+export type StaffRole = 'admin' | 'adminLevel' | 'staffLead' | 'staff'
+export type StaffProfile = {
+  username: string
+  role: StaffRole
+  levelId?: CompetitionLevelId
+  groupId?: string
+  staffName: string
 }
 
 export type FirebaseDiagnostics = {
@@ -53,8 +71,25 @@ const envValues: Record<(typeof requiredEnv)[number], string | undefined> = {
 }
 
 const missingVariables = requiredEnv.filter((name) => !envValues[name])
+const authEmailDomain = 'gm-advanced.local'
+
 export function databasePathForLevel(levelId: CompetitionLevelId) {
   return `competitions/${competitionRoot}/${levelId}`
+}
+
+export function staffProfilePath(uid: string) {
+  return `users/${uid}`
+}
+
+export function staffEmailForId(username: string) {
+  return `${username.trim().toLowerCase()}@${authEmailDomain}`
+}
+
+function firebasePasswordCandidates(password: string) {
+  const trimmed = password.trim()
+  if (trimmed === '1234') return ['123456']
+  if (trimmed === '1122') return ['112233']
+  return [password]
 }
 
 let services: FirebaseServices | null = null
@@ -88,11 +123,93 @@ export function getFirebaseServices() {
     const app = initializeApp(firebaseConfig)
     services = {
       app,
+      auth: getAuth(app),
       database: getDatabase(app),
     }
   }
 
   return services
+}
+
+function isStaffRole(value: unknown): value is StaffRole {
+  return value === 'admin' || value === 'adminLevel' || value === 'staffLead' || value === 'staff'
+}
+
+function readStaffProfile(value: unknown): StaffProfile | null {
+  if (!value || typeof value !== 'object') return null
+  const profile = value as Record<string, unknown>
+  if (typeof profile.username !== 'string' || !isStaffRole(profile.role) || typeof profile.staffName !== 'string') {
+    return null
+  }
+
+  return {
+    username: profile.username.trim().toLowerCase(),
+    role: profile.role,
+    levelId: typeof profile.levelId === 'string' ? profile.levelId as CompetitionLevelId : undefined,
+    groupId: typeof profile.groupId === 'string' ? profile.groupId : undefined,
+    staffName: profile.staffName,
+  }
+}
+
+export async function getStaffProfile(user: User) {
+  const current = getFirebaseServices()
+  const snapshot = await get(ref(current.database, staffProfilePath(user.uid)))
+  const profile = readStaffProfile(snapshot.val())
+  if (!profile) {
+    throw new Error('This account does not have a staff profile.')
+  }
+  return profile
+}
+
+export async function signInStaff(username: string, password: string) {
+  const normalized = username.trim().toLowerCase()
+  const current = getFirebaseServices()
+  const candidates = firebasePasswordCandidates(password)
+  let credential
+  for (const candidate of candidates) {
+    try {
+      credential = await signInWithEmailAndPassword(current.auth, staffEmailForId(normalized), candidate)
+      break
+    } catch (error) {
+      if (candidate === candidates.at(-1)) throw error
+    }
+  }
+  if (!credential) throw new Error('Could not sign in.')
+  const profile = await getStaffProfile(credential.user)
+
+  if (profile.username !== normalized) {
+    await signOut(current.auth)
+    throw new Error('This staff ID does not match the signed-in account.')
+  }
+
+  return profile
+}
+
+export function subscribeStaffAuth(callback: (profile: StaffProfile | null) => void) {
+  if (!firebaseIsConfigured()) {
+    callback(null)
+    return () => undefined
+  }
+
+  const current = getFirebaseServices()
+  return onAuthStateChanged(current.auth, (user) => {
+    if (!user) {
+      callback(null)
+      return
+    }
+
+    getStaffProfile(user)
+      .then(callback)
+      .catch(() => {
+        callback(null)
+        void signOut(current.auth)
+      })
+  })
+}
+
+export async function signOutStaff() {
+  if (!firebaseIsConfigured()) return
+  await signOut(getFirebaseServices().auth)
 }
 
 export function getInitialFirebaseDiagnostics(): FirebaseDiagnostics {

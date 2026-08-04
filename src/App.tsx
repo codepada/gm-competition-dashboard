@@ -24,10 +24,14 @@ import {
   getInitialFirebaseDiagnostics,
   initializeSelectedLevel,
   type FirebaseDiagnostics,
+  type StaffProfile,
   firebaseIsConfigured,
   resetSelectedLevel,
   saveCompetition,
+  signInStaff,
+  signOutStaff,
   subscribeCompetition,
+  subscribeStaffAuth,
   withServerTimestamp,
 } from './firebase'
 
@@ -35,16 +39,9 @@ const cacheKey = 'gm-advanced-competition-cache'
 const queueKey = 'gm-advanced-competition-queue'
 const staffNameKey = 'gm-advanced-staff-name'
 const selectedLevelKey = 'gm-advanced-selected-level'
-const sessionKey = 'gm-advanced-session'
 
 type Route = '/dashboard' | '/summary' | '/setup'
-type UserRole = 'admin' | 'adminLevel' | 'staffLead' | 'staff'
-type AppSession = {
-  username: string
-  role: UserRole
-  levelId?: CompetitionLevelId
-  groupId?: string
-}
+type AppSession = StaffProfile
 type AudioWindow = typeof window & {
   webkitAudioContext?: typeof AudioContext
 }
@@ -52,27 +49,6 @@ type IssueTarget = {
   groupId: string
   key: string
   levelId: CompetitionLevelId
-}
-
-const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; groupId?: string; staffName: string }> = {
-  wgm2026: { password: '1122', role: 'admin', staffName: 'Admin' },
-  adminf: { password: '1234', role: 'staffLead', staffName: 'Head Staff' },
-  adminu: { password: '1234', role: 'staffLead', staffName: 'Head Staff' },
-  adminel: { password: '1234', role: 'adminLevel', levelId: 'elementary-school', staffName: 'Elementary Admin' },
-  adminjr: { password: '1234', role: 'adminLevel', levelId: 'junior-high-school', staffName: 'Junior Admin' },
-  adminsh: { password: '1234', role: 'adminLevel', levelId: 'senior-high-school', staffName: 'Senior Admin' },
-  dsel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group1', staffName: 'Elementary Devices Staff' },
-  sgel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group2', staffName: 'Elementary Science Staff' },
-  crel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group3', staffName: 'Elementary Creative Staff' },
-  ovel: { password: '1234', role: 'staff', levelId: 'elementary-school', groupId: 'group4', staffName: 'Elementary Overall Staff' },
-  dsjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group1', staffName: 'Junior Devices Staff' },
-  sgjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group2', staffName: 'Junior Science Staff' },
-  crjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group3', staffName: 'Junior Creative Staff' },
-  ovjr: { password: '1234', role: 'staff', levelId: 'junior-high-school', groupId: 'group4', staffName: 'Junior Overall Staff' },
-  dssh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group1', staffName: 'Senior Devices Staff' },
-  sgsh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group2', staffName: 'Senior Science Staff' },
-  crsh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group3', staffName: 'Senior Creative Staff' },
-  ovsh: { password: '1234', role: 'staff', levelId: 'senior-high-school', groupId: 'group4', staffName: 'Senior Overall Staff' },
 }
 
 const redirectedPath = new URLSearchParams(window.location.search).get('redirect')
@@ -126,15 +102,6 @@ function queueCompetition(levelId: CompetitionLevelId, data: CompetitionData) {
 
 function clearQueue(levelId: CompetitionLevelId) {
   localStorage.removeItem(scopedKey(queueKey, levelId))
-}
-
-function readSession() {
-  try {
-    const session = localStorage.getItem(sessionKey)
-    return session ? (JSON.parse(session) as AppSession) : null
-  } catch {
-    return null
-  }
 }
 
 function nowIso() {
@@ -428,11 +395,10 @@ function playTimerAlert(volume = 0.18) {
 }
 
 function App() {
-  const [session, setSession] = useState<AppSession | null>(readSession)
+  const [session, setSession] = useState<AppSession | null>(null)
+  const [authReady, setAuthReady] = useState(!firebaseIsConfigured())
   const [route, setRoute] = useState<Route>(getRoute)
   const [selectedLevel, setSelectedLevel] = useState<CompetitionLevelId>(() => {
-    const session = readSession()
-    if (session?.levelId) return session.levelId
     const saved = localStorage.getItem(selectedLevelKey) as CompetitionLevelId | null
     return saved && competitionLevels.some((level) => level.id === saved) ? saved : defaultLevelId
   })
@@ -469,6 +435,23 @@ function App() {
   }, [session])
 
   useEffect(() => {
+    const unsubscribe = subscribeStaffAuth((profile) => {
+      setSession(profile)
+      setAuthReady(true)
+      if (!profile) return
+
+      localStorage.setItem(staffNameKey, profile.staffName)
+      setStaffName(profile.staffName)
+      if (profile.levelId) {
+        localStorage.setItem(selectedLevelKey, profile.levelId)
+        setSelectedLevel(profile.levelId)
+      }
+    })
+
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
     if (!session) return
     if (session.levelId && selectedLevel !== session.levelId) {
       setSelectedLevel(session.levelId)
@@ -492,12 +475,13 @@ function App() {
   useEffect(() => {
     if (!session || staffName) return
     const name = window.prompt('Staff Name')
-    const nextName = name?.trim() || accounts[session.username]?.staffName || 'Staff'
+    const nextName = name?.trim() || session.staffName || 'Staff'
     localStorage.setItem(staffNameKey, nextName)
     setStaffName(nextName)
   }, [session, staffName])
 
   useEffect(() => {
+    if (!session) return () => undefined
     if (!firebaseIsConfigured()) {
       setSaveMessage('Firebase env missing')
       return () => undefined
@@ -546,12 +530,18 @@ function App() {
       cancelled = true
       unsubscribe()
     }
-  }, [selectedLevel])
+  }, [selectedLevel, session])
 
   useEffect(() => {
+    if (!session) return () => undefined
+    if (!isAdmin) return () => undefined
     if (!firebaseIsConfigured()) return () => undefined
 
-    const unsubscribers = competitionLevels.map((level) =>
+    const levels = session.role === 'adminLevel' && session.levelId
+      ? competitionLevels.filter((level) => level.id === session.levelId)
+      : competitionLevels
+
+    const unsubscribers = levels.map((level) =>
       subscribeCompetition(level.id, (remote) => {
         setSummaryData((current) => ({
           ...current,
@@ -564,7 +554,7 @@ function App() {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe())
     }
-  }, [])
+  }, [isAdmin, session])
 
   useEffect(() => {
     if (!isAdmin) {
@@ -629,6 +619,7 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!session) return
     if (!online || !firebaseIsConfigured()) return
     const queued = readQueuedCompetition(selectedLevel)
     if (!queued) return
@@ -640,7 +631,7 @@ function App() {
       .catch(() => {
         setSaveMessage('Sync retry pending')
       })
-  }, [online, selectedLevel])
+  }, [online, selectedLevel, session])
 
   async function persist(nextData: CompetitionData, message = 'Saved') {
     setData(nextData)
@@ -752,7 +743,7 @@ function App() {
         roundForGroupRunOrder(data, groupId, data.judgeGroups[groupId]?.startRunOrder || 1),
       ])),
     }))
-  }, [data.settings.totalRounds, isStaff, selectedLevel, staffScheduleKey, visibleGroupIds])
+  }, [data, isStaff, selectedLevel, staffScheduleKey, visibleGroupIds])
 
   function setAllGroupRounds(round: number) {
     const nextRound = Math.min(Math.max(1, round), data.settings.totalRounds)
@@ -773,34 +764,26 @@ function App() {
     setMenuOpen(false)
   }
 
-  function handleLogin(username: string, password: string) {
-    const normalized = username.trim().toLowerCase()
-    const account = accounts[normalized]
-    if (!account || account.password !== password) {
+  async function handleLogin(username: string, password: string) {
+    try {
+      const profile = await signInStaff(username, password)
+      setSession(profile)
+      localStorage.setItem(staffNameKey, profile.staffName)
+      setStaffName(profile.staffName)
+
+      if (profile.levelId) {
+        localStorage.setItem(selectedLevelKey, profile.levelId)
+        setSelectedLevel(profile.levelId)
+      }
+      navigate('/dashboard')
+      return true
+    } catch {
       return false
     }
-
-    const nextSession: AppSession = {
-      username: normalized,
-      role: account.role,
-      levelId: account.levelId,
-      groupId: account.groupId,
-    }
-    localStorage.setItem(sessionKey, JSON.stringify(nextSession))
-    localStorage.setItem(staffNameKey, account.staffName)
-    setSession(nextSession)
-    setStaffName(account.staffName)
-
-    if (account.levelId) {
-      localStorage.setItem(selectedLevelKey, account.levelId)
-      setSelectedLevel(account.levelId)
-    }
-    navigate('/dashboard')
-    return true
   }
 
   function handleLogout() {
-    localStorage.removeItem(sessionKey)
+    void signOutStaff()
     setSession(null)
     setMenuOpen(false)
     navigate('/dashboard')
@@ -1206,6 +1189,10 @@ function App() {
       })
   }
 
+  if (!authReady) {
+    return <AuthLoadingPage />
+  }
+
   if (!session) {
     return <LoginPage onLogin={handleLogin} />
   }
@@ -1364,14 +1351,32 @@ function App() {
   )
 }
 
-function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => boolean }) {
+function AuthLoadingPage() {
+  return (
+    <main className="login-page">
+      <section className="login-panel">
+        <div>
+          <p className="eyebrow">GM Advanced</p>
+          <h1>Competition Control</h1>
+        </div>
+        <p className="login-note">Checking login...</p>
+      </section>
+    </main>
+  )
+}
+
+function LoginPage({ onLogin }: { onLogin: (username: string, password: string) => Promise<boolean> }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const ok = onLogin(username, password)
+    setSubmitting(true)
+    setError('')
+    const ok = await onLogin(username, password)
+    setSubmitting(false)
     if (!ok) setError('ID or password is incorrect.')
   }
 
@@ -1382,10 +1387,10 @@ function LoginPage({ onLogin }: { onLogin: (username: string, password: string) 
           <p className="eyebrow">GM Advanced</p>
           <h1>Competition Control</h1>
         </div>
-        <label>ID<input autoFocus value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /></label>
-        <label>Password<input type="password" value={password} autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} /></label>
+        <label>ID<input autoFocus value={username} autoComplete="username" disabled={submitting} onChange={(event) => setUsername(event.target.value)} /></label>
+        <label>Password<input type="password" value={password} autoComplete="current-password" disabled={submitting} onChange={(event) => setPassword(event.target.value)} /></label>
         {error ? <p className="login-error">{error}</p> : null}
-        <button className="primary" type="submit">Login</button>
+        <button className="primary" type="submit" disabled={submitting}>{submitting ? 'Logging in...' : 'Login'}</button>
       </form>
     </main>
   )
