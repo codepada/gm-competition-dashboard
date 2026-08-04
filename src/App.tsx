@@ -870,6 +870,7 @@ function App() {
     const roundState = data.rounds[`round-${round}`]
     if (!roundState) return
     if (roundState.groups[groupId]?.configured === false) return
+    const completedGroup = roundState.groups[groupId]
     updateData((current) => {
       const roundKey = `round-${round}`
       const group = current.rounds[roundKey].groups[groupId]
@@ -897,6 +898,19 @@ function App() {
       }
       return addLog(next, makeLog('COMPLETE', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
     }, 'Completion saved')
+    if (isStaff) {
+      const nextRound = roundForGroupRunOrder(
+        data,
+        groupId,
+        nextRunOrder(completedGroup.runOrder, data.settings.totalRounds, 1),
+      )
+      window.setTimeout(() => {
+        setGroupRounds((current) => ({
+          ...current,
+          [groupId]: nextRound,
+        }))
+      }, 700)
+    }
   }
 
   function handleUndo(groupId: string, round: number) {
@@ -1693,9 +1707,6 @@ function DashboardPage(props: DashboardProps) {
     : currentRound
   const displayRoundState = data.rounds[`round-${displayRound}`] || currentRoundState
   const staffDisplayGroup = staffGroupId ? displayRoundState.groups[staffGroupId] : undefined
-  const displayCompletedCount = staffGroupId
-    ? (displayRoundState.groups[staffGroupId]?.completed ? 1 : 0)
-    : completedCount
   const displayDeadlineMinutes = displayRoundState
     ? minutesUntil(data.settings.competitionDate, displayRoundState.finishTime, now)
     : deadlineMinutes
@@ -1723,15 +1734,11 @@ function DashboardPage(props: DashboardProps) {
           <span className="label">Deadline</span>
           <strong>{formatRemaining(displayDeadlineMinutes)}</strong>
         </div>
-        <div>
-          <span className="label">Completion</span>
-          <strong>{displayCompletedCount} / {props.requiredCount} completed</strong>
-        </div>
       </div>
 
       {!props.showTimer ? (
         <div className="round-controls">
-          <button type="button" className="ghost" disabled={currentRound <= 1} onClick={() => props.onRoundChange(currentRound - 1)}>Previous Round</button>
+          <button type="button" className="ghost" onClick={() => props.onRoundChange(nextRunOrder(currentRound, data.settings.totalRounds, -1))}>Previous Round</button>
           <label>
             Go to Round
             <input
@@ -1742,7 +1749,7 @@ function DashboardPage(props: DashboardProps) {
               onChange={(event) => props.onRoundChange(Number(event.target.value))}
             />
           </label>
-          <button type="button" className="ghost" disabled={currentRound >= data.settings.totalRounds} onClick={() => props.onRoundChange(currentRound + 1)}>Next Round</button>
+          <button type="button" className="ghost" onClick={() => props.onRoundChange(nextRunOrder(currentRound, data.settings.totalRounds, 1))}>Next Round</button>
           <label className="toggle inline-toggle">
             <input
               type="checkbox"
@@ -1760,7 +1767,7 @@ function DashboardPage(props: DashboardProps) {
       {!props.showTimer && completedCount === props.requiredCount ? (
         <div className="all-complete">
           <strong>ALL CONFIGURED JUDGING GROUPS COMPLETED</strong>
-          <button type="button" className="primary" disabled={currentRound >= data.settings.totalRounds} onClick={() => props.onRoundChange(currentRound + 1)}>Next Round</button>
+          <button type="button" className="primary" onClick={() => props.onRoundChange(nextRunOrder(currentRound, data.settings.totalRounds, 1))}>Next Round</button>
         </div>
       ) : null}
 
@@ -1776,7 +1783,7 @@ function DashboardPage(props: DashboardProps) {
           const cardTime = formatCardTime(group, groupRoundState.finishTime, data, now)
           const categoryName = dashboardCategoryNames[groupId] || data.judgeGroups[groupId].categoryName
           const groupNumber = Number(groupId.replace('group', '')) || index + 1
-          const displayOrder = props.showTimer ? group.runOrder : groupRound
+          const displayOrder = group.runOrder
           return (
             <article className={`judge-card group-${groupNumber} ${configured ? status.toLowerCase() : 'not-configured'}`} key={groupId}>
               <div className="card-head">
@@ -1794,11 +1801,9 @@ function DashboardPage(props: DashboardProps) {
                 <button
                     className="ghost"
                     type="button"
-                    disabled={!props.showTimer && groupRound <= 1}
+                    disabled={false}
                   onClick={() => {
-                    const nextRound = props.showTimer
-                      ? roundForGroupRunOrder(data, groupId, nextRunOrder(group.runOrder, data.settings.totalRounds, -1))
-                      : groupRound - 1
+                    const nextRound = roundForGroupRunOrder(data, groupId, nextRunOrder(group.runOrder, data.settings.totalRounds, -1))
                     props.onGroupRoundChange(groupId, nextRound)
                   }}
                 >
@@ -1806,25 +1811,23 @@ function DashboardPage(props: DashboardProps) {
                 </button>
                 <label className="round-input-label">
                   <input
-                    aria-label={props.showTimer ? `Judge Group ${groupNumber} run order` : `Judge Group ${groupNumber} round`}
+                    aria-label={`Judge Group ${groupNumber} run order`}
                     type="number"
                     min="1"
                     max={data.settings.totalRounds}
                     value={displayOrder}
                     onChange={(event) => {
                       const value = Number(event.target.value)
-                      props.onGroupRoundChange(groupId, props.showTimer ? roundForGroupRunOrder(data, groupId, value) : value)
+                      props.onGroupRoundChange(groupId, roundForGroupRunOrder(data, groupId, value))
                     }}
                   />
                 </label>
                 <button
                   className="ghost"
                   type="button"
-                  disabled={!props.showTimer && groupRound >= data.settings.totalRounds}
+                  disabled={false}
                   onClick={() => {
-                    const nextRound = props.showTimer
-                      ? roundForGroupRunOrder(data, groupId, nextRunOrder(group.runOrder, data.settings.totalRounds, 1))
-                      : groupRound + 1
+                    const nextRound = roundForGroupRunOrder(data, groupId, nextRunOrder(group.runOrder, data.settings.totalRounds, 1))
                     props.onGroupRoundChange(groupId, nextRound)
                   }}
                 >

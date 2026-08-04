@@ -269,7 +269,7 @@ button:disabled {
 
 .status-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -1237,6 +1237,10 @@ textarea {
     padding-right: clamp(10px, 3.2vw, 16px);
   }
 
+  .staff-dashboard .status-strip {
+    grid-template-columns: minmax(92px, 0.72fr) minmax(170px, 1.28fr);
+  }
+
   .topbar {
     position: sticky;
     top: 0;
@@ -1425,7 +1429,7 @@ textarea {
   }
 
   .status-strip {
-    grid-template-columns: 0.8fr 1.2fr 1fr;
+    grid-template-columns: minmax(92px, 0.72fr) minmax(170px, 1.28fr);
     gap: 6px;
     margin-bottom: 6px;
   }
@@ -1448,6 +1452,12 @@ textarea {
   .label,
   .eyebrow {
     font-size: 10px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 
   .round-controls {
