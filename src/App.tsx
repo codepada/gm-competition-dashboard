@@ -23,6 +23,7 @@ import {
   ensureCompetitionExists,
   getInitialFirebaseDiagnostics,
   initializeSelectedLevel,
+  loadEventLogs,
   type FirebaseDiagnostics,
   type StaffProfile,
   firebaseIsConfigured,
@@ -429,6 +430,7 @@ function App() {
   const canSetup = isSuperAdmin
   const canSelectLevel = isSuperAdmin || isStaffLead
   const canClearTests = isSuperAdmin || isStaffLead
+  const effectiveRoute = !isAdmin && route !== '/dashboard' ? '/dashboard' : route
   const visibleGroupIds = useMemo(() => {
     if (session?.role === 'staff' && session.groupId) return [session.groupId]
     return [...judgeGroupIds]
@@ -482,6 +484,7 @@ function App() {
 
   useEffect(() => {
     if (!session) return () => undefined
+    if (effectiveRoute === '/summary') return () => undefined
     if (!firebaseIsConfigured()) {
       setSaveMessage('Firebase env missing')
       return () => undefined
@@ -512,6 +515,10 @@ function App() {
           }
           setLevelHasData(true)
           setData(remote)
+          setSummaryData((current) => ({
+            ...current,
+            [selectedLevel]: remote,
+          }))
           writeCachedCompetition(selectedLevel, remote)
           setSaveMessage('Synced with Firebase')
         }, setFirebaseDiagnostics)
@@ -530,11 +537,12 @@ function App() {
       cancelled = true
       unsubscribe()
     }
-  }, [selectedLevel, session])
+  }, [effectiveRoute, selectedLevel, session])
 
   useEffect(() => {
     if (!session) return () => undefined
     if (!isAdmin) return () => undefined
+    if (effectiveRoute !== '/summary') return () => undefined
     if (!firebaseIsConfigured()) return () => undefined
 
     const levels = session.role === 'adminLevel' && session.levelId
@@ -554,7 +562,7 @@ function App() {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe())
     }
-  }, [isAdmin, session])
+  }, [effectiveRoute, isAdmin, session])
 
   useEffect(() => {
     if (!isAdmin) {
@@ -1033,16 +1041,22 @@ function App() {
     downloadFile('gm-advanced-teams.csv', rows.join('\n'), 'text/csv')
   }
 
-  function exportEventsCsv() {
+  async function exportEventsCsv() {
+    const eventLogs = firebaseIsConfigured()
+      ? await loadEventLogs(selectedLevel).catch(() => data.eventLogs)
+      : data.eventLogs
     const rows = ['timestamp,round,judgeGroup,action,teamId,staffName,note']
-    Object.values(data.eventLogs).forEach((log) => {
+    Object.values(eventLogs).forEach((log) => {
       rows.push([log.timestamp, log.round, log.judgeGroup, log.action, log.teamId || '', log.staffName || '', log.note || ''].join(','))
     })
     downloadFile('gm-advanced-event-log.csv', rows.join('\n'), 'text/csv')
   }
 
-  function exportStatusJson() {
-    downloadFile('gm-advanced-status-backup.json', JSON.stringify(data, null, 2), 'application/json')
+  async function exportStatusJson() {
+    const eventLogs = firebaseIsConfigured()
+      ? await loadEventLogs(selectedLevel).catch(() => data.eventLogs)
+      : data.eventLogs
+    downloadFile('gm-advanced-status-backup.json', JSON.stringify({ ...data, eventLogs }, null, 2), 'application/json')
   }
 
   function importBackup(event: ChangeEvent<HTMLInputElement>) {
@@ -1197,7 +1211,6 @@ function App() {
     return <LoginPage onLogin={handleLogin} />
   }
 
-  const effectiveRoute = !isAdmin && route !== '/dashboard' ? '/dashboard' : route
   const headerTitle = effectiveRoute === '/summary' ? 'GM Advanced' : displayCompetitionTitle(data, selectedLevel)
   const headerMode = isSuperAdmin ? 'Admin Control' : isStaffLead ? 'Head Staff Control' : isAdmin ? 'Level Admin Control' : 'Judge Staff Control'
 

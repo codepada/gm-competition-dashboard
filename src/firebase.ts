@@ -7,7 +7,21 @@ import {
   type Auth,
   type User,
 } from 'firebase/auth'
-import { getDatabase, get, onValue, ref, remove, serverTimestamp, set, type Database } from 'firebase/database'
+import {
+  getDatabase,
+  get,
+  limitToLast,
+  onChildAdded,
+  onChildChanged,
+  onValue,
+  query,
+  ref,
+  remove,
+  serverTimestamp,
+  set,
+  update,
+  type Database,
+} from 'firebase/database'
 import {
   competitionRoot,
   createCompetitionForLevel,
@@ -21,6 +35,11 @@ type FirebaseServices = {
   app: FirebaseApp
   auth: Auth
   database: Database
+}
+
+type ListenerEntry<T> = {
+  callbacks: Set<(value: T) => void>
+  unsubscribe: () => void
 }
 
 export type StaffRole = 'admin' | 'adminLevel' | 'staffLead' | 'staff'
@@ -72,6 +91,7 @@ const envValues: Record<(typeof requiredEnv)[number], string | undefined> = {
 
 const missingVariables = requiredEnv.filter((name) => !envValues[name])
 const authEmailDomain = 'gm-advanced.local'
+const latestEventLogLimit = 100
 
 export function databasePathForLevel(levelId: CompetitionLevelId) {
   return `competitions/${competitionRoot}/${levelId}`
@@ -93,6 +113,11 @@ function firebasePasswordCandidates(password: string) {
 }
 
 let services: FirebaseServices | null = null
+const competitionCache = new Map<CompetitionLevelId, CompetitionData | null>()
+const pendingCompetitionLoads = new Map<CompetitionLevelId, Promise<CompetitionData | null>>()
+const valueListeners = new Map<string, ListenerEntry<unknown>>()
+const childAddedListeners = new Map<string, ListenerEntry<{ key: string; value: unknown }>>()
+const childChangedListeners = new Map<string, ListenerEntry<{ key: string; value: unknown }>>()
 
 function cleanUndefined<T>(value: T): T {
   if (Array.isArray(value)) return value.map(cleanUndefined) as T
@@ -104,6 +129,104 @@ function cleanUndefined<T>(value: T): T {
     ) as T
   }
   return value
+}
+
+function updateCompetitionCache(levelId: CompetitionLevelId, mutator: (current: CompetitionData | null) => CompetitionData | null) {
+  const next = mutator(competitionCache.get(levelId) ?? null)
+  competitionCache.set(levelId, next)
+  return next
+}
+
+function subscribeSharedValue<T>(path: string, callback: (value: T | null) => void) {
+  const current = getFirebaseServices()
+  const existing = valueListeners.get(path) as ListenerEntry<T | null> | undefined
+  if (existing) {
+    existing.callbacks.add(callback)
+    return () => {
+      existing.callbacks.delete(callback)
+      if (existing.callbacks.size) return
+      existing.unsubscribe()
+      valueListeners.delete(path)
+    }
+  }
+
+  const callbacks = new Set<(value: T | null) => void>([callback])
+  const unsubscribe = onValue(ref(current.database, path), (snapshot) => {
+    const value = snapshot.exists() ? snapshot.val() as T : null
+    callbacks.forEach((listener) => listener(value))
+  })
+  valueListeners.set(path, { callbacks: callbacks as Set<(value: unknown) => void>, unsubscribe })
+
+  return () => {
+    callbacks.delete(callback)
+    if (callbacks.size) return
+    unsubscribe()
+    valueListeners.delete(path)
+  }
+}
+
+function subscribeSharedChildAdded<T>(path: string, callback: (key: string, value: T) => void, limit?: number) {
+  const current = getFirebaseServices()
+  const listenerKey = limit ? `${path}?limitToLast=${limit}:child_added` : `${path}:child_added`
+  const existing = childAddedListeners.get(listenerKey)
+  const wrappedCallback = ({ key, value }: { key: string; value: unknown }) => callback(key, value as T)
+  if (existing) {
+    existing.callbacks.add(wrappedCallback)
+    return () => {
+      existing.callbacks.delete(wrappedCallback)
+      if (existing.callbacks.size) return
+      existing.unsubscribe()
+      childAddedListeners.delete(listenerKey)
+    }
+  }
+
+  const callbacks = new Set<(value: { key: string; value: unknown }) => void>([wrappedCallback])
+  const targetRef = ref(current.database, path)
+  const unsubscribe = onChildAdded(limit ? query(targetRef, limitToLast(limit)) : targetRef, (snapshot) => {
+    if (!snapshot.key) return
+    const item = { key: snapshot.key, value: snapshot.val() }
+    callbacks.forEach((listener) => listener(item))
+  })
+  childAddedListeners.set(listenerKey, { callbacks, unsubscribe })
+
+  return () => {
+    callbacks.delete(wrappedCallback)
+    if (callbacks.size) return
+    unsubscribe()
+    childAddedListeners.delete(listenerKey)
+  }
+}
+
+function subscribeSharedChildChanged<T>(path: string, callback: (key: string, value: T) => void, limit?: number) {
+  const current = getFirebaseServices()
+  const listenerKey = limit ? `${path}?limitToLast=${limit}:child_changed` : `${path}:child_changed`
+  const existing = childChangedListeners.get(listenerKey)
+  const wrappedCallback = ({ key, value }: { key: string; value: unknown }) => callback(key, value as T)
+  if (existing) {
+    existing.callbacks.add(wrappedCallback)
+    return () => {
+      existing.callbacks.delete(wrappedCallback)
+      if (existing.callbacks.size) return
+      existing.unsubscribe()
+      childChangedListeners.delete(listenerKey)
+    }
+  }
+
+  const callbacks = new Set<(value: { key: string; value: unknown }) => void>([wrappedCallback])
+  const targetRef = ref(current.database, path)
+  const unsubscribe = onChildChanged(limit ? query(targetRef, limitToLast(limit)) : targetRef, (snapshot) => {
+    if (!snapshot.key) return
+    const item = { key: snapshot.key, value: snapshot.val() }
+    callbacks.forEach((listener) => listener(item))
+  })
+  childChangedListeners.set(listenerKey, { callbacks, unsubscribe })
+
+  return () => {
+    callbacks.delete(wrappedCallback)
+    if (callbacks.size) return
+    unsubscribe()
+    childChangedListeners.delete(listenerKey)
+  }
 }
 
 export function validateFirebaseEnvironment() {
@@ -226,20 +349,62 @@ export function getInitialFirebaseDiagnostics(): FirebaseDiagnostics {
 }
 
 export async function ensureCompetitionExists(levelId: CompetitionLevelId) {
-  const current = getFirebaseServices()
-  const databasePath = databasePathForLevel(levelId)
-  const competitionRef = ref(current.database, databasePath)
-  const snapshot = await get(competitionRef)
-
-  if (snapshot.exists()) {
+  if (competitionCache.has(levelId)) {
+    const cached = competitionCache.get(levelId)
     return {
       created: false,
-      data: snapshot.val() as CompetitionData,
+      data: cached,
+    }
+  }
+
+  const pending = pendingCompetitionLoads.get(levelId)
+  if (pending) {
+    const data = await pending
+    return {
+      created: false,
+      data,
+    }
+  }
+
+  const current = getFirebaseServices()
+  const databasePath = databasePathForLevel(levelId)
+  const load = Promise.all([
+    get(ref(current.database, `${databasePath}/settings`)),
+    get(ref(current.database, `${databasePath}/judgeGroups`)),
+    get(ref(current.database, `${databasePath}/teams`)),
+    get(ref(current.database, `${databasePath}/rounds`)),
+    get(query(ref(current.database, `${databasePath}/eventLogs`), limitToLast(latestEventLogLimit))),
+  ]).then(([settings, judgeGroups, teams, rounds, eventLogs]) => {
+    const hasData = settings.exists() || judgeGroups.exists() || teams.exists() || rounds.exists()
+    const data = hasData
+      ? {
+        settings: settings.val(),
+        judgeGroups: judgeGroups.val(),
+        teams: teams.val(),
+        rounds: rounds.val(),
+        eventLogs: eventLogs.exists() ? eventLogs.val() : {},
+      } as CompetitionData
+      : null
+    competitionCache.set(levelId, data)
+    pendingCompetitionLoads.delete(levelId)
+    return data
+  }).catch((error) => {
+    pendingCompetitionLoads.delete(levelId)
+    throw error
+  })
+  pendingCompetitionLoads.set(levelId, load)
+  const data = await load
+
+  if (data) {
+    return {
+      created: false,
+      data,
     }
   }
 
   const initialData = createCompetitionForLevel(levelId)
-  await set(competitionRef, initialData)
+  await saveCompetition(levelId, initialData)
+  competitionCache.set(levelId, initialData)
   return {
     created: true,
     data: initialData,
@@ -257,13 +422,16 @@ export function subscribeCompetition(
     return () => undefined
   }
 
-  const current = getFirebaseServices()
   const databasePath = databasePathForLevel(levelId)
-  const connectedRef = ref(current.database, '.info/connected')
-  const dataRef = ref(current.database, databasePath)
+  const unsubscribers: Array<() => void> = []
+  if (!competitionCache.has(levelId) && !pendingCompetitionLoads.has(levelId)) {
+    ensureCompetitionExists(levelId)
+      .then(() => emit())
+      .catch(() => callback(null))
+  }
 
-  const unsubscribeConnected = onValue(connectedRef, (snapshot) => {
-    const connected = snapshot.val() === true
+  const unsubscribeConnected = subscribeSharedValue<boolean>('.info/connected', (connectedValue) => {
+    const connected = connectedValue === true
     onConnectionChange?.({
       configured: true,
       connected,
@@ -272,20 +440,98 @@ export function subscribeCompetition(
       message: connected ? 'Connected to Firebase Realtime Database.' : 'Firebase configured, currently offline.',
     })
   })
+  unsubscribers.push(unsubscribeConnected)
 
-  const unsubscribeData = onValue(dataRef, (snapshot) => {
-    callback(snapshot.exists() ? (snapshot.val() as CompetitionData) : null)
-  })
+  const emit = () => callback(competitionCache.get(levelId) ?? null)
+  emit()
+
+  unsubscribers.push(subscribeSharedValue<CompetitionData['settings']>(`${databasePath}/settings`, (settings) => {
+    updateCompetitionCache(levelId, (currentData) => settings && currentData ? { ...currentData, settings } : currentData)
+    emit()
+  }))
+
+  unsubscribers.push(subscribeSharedValue<CompetitionData['judgeGroups']>(`${databasePath}/judgeGroups`, (judgeGroups) => {
+    updateCompetitionCache(levelId, (currentData) => judgeGroups && currentData ? { ...currentData, judgeGroups } : currentData)
+    emit()
+  }))
+
+  unsubscribers.push(subscribeSharedValue<CompetitionData['teams']>(`${databasePath}/teams`, (teams) => {
+    updateCompetitionCache(levelId, (currentData) => teams && currentData ? { ...currentData, teams } : currentData)
+    emit()
+  }))
+
+  const updateRound = (roundKey: string, round: CompetitionData['rounds'][string]) => {
+    updateCompetitionCache(levelId, (currentData) => round && currentData ? {
+      ...currentData,
+      rounds: {
+        ...currentData.rounds,
+        [roundKey]: round,
+      },
+    } : currentData)
+    emit()
+  }
+  unsubscribers.push(subscribeSharedChildChanged<CompetitionData['rounds'][string]>(`${databasePath}/rounds`, updateRound))
+
+  const updateEventLog = (logKey: string, log: EventLog) => {
+    updateCompetitionCache(levelId, (currentData) => log && currentData ? {
+      ...currentData,
+      eventLogs: {
+        ...currentData.eventLogs,
+        [logKey]: log,
+      },
+    } : currentData)
+    emit()
+  }
+  unsubscribers.push(subscribeSharedChildAdded<EventLog>(`${databasePath}/eventLogs`, updateEventLog, latestEventLogLimit))
+  unsubscribers.push(subscribeSharedChildChanged<EventLog>(`${databasePath}/eventLogs`, updateEventLog, latestEventLogLimit))
 
   return () => {
-    unsubscribeConnected()
-    unsubscribeData()
+    unsubscribers.forEach((unsubscribe) => unsubscribe())
   }
+}
+
+export function subscribeConnection(
+  levelId: CompetitionLevelId,
+  onConnectionChange: (diagnostics: FirebaseDiagnostics) => void,
+) {
+  if (!firebaseIsConfigured()) {
+    onConnectionChange(getInitialFirebaseDiagnostics())
+    return () => undefined
+  }
+
+  const databasePath = databasePathForLevel(levelId)
+  return subscribeSharedValue<boolean>('.info/connected', (connectedValue) => {
+    const connected = connectedValue === true
+    onConnectionChange?.({
+      configured: true,
+      connected,
+      path: databasePath,
+      missingVariables: [],
+      message: connected ? 'Connected to Firebase Realtime Database.' : 'Firebase configured, currently offline.',
+    })
+  })
 }
 
 export async function saveCompetition(levelId: CompetitionLevelId, data: CompetitionData) {
   const current = getFirebaseServices()
-  await set(ref(current.database, databasePathForLevel(levelId)), cleanUndefined(data))
+  const cleaned = cleanUndefined(data)
+  const databasePath = databasePathForLevel(levelId)
+  await Promise.all([
+    set(ref(current.database, `${databasePath}/settings`), cleaned.settings),
+    set(ref(current.database, `${databasePath}/judgeGroups`), cleaned.judgeGroups),
+    set(ref(current.database, `${databasePath}/teams`), cleaned.teams),
+    set(ref(current.database, `${databasePath}/rounds`), cleaned.rounds),
+    Object.keys(cleaned.eventLogs || {}).length
+      ? update(ref(current.database, `${databasePath}/eventLogs`), cleaned.eventLogs)
+      : remove(ref(current.database, `${databasePath}/eventLogs`)),
+  ])
+  competitionCache.set(levelId, cleaned)
+}
+
+export async function loadEventLogs(levelId: CompetitionLevelId) {
+  const current = getFirebaseServices()
+  const snapshot = await get(ref(current.database, `${databasePathForLevel(levelId)}/eventLogs`))
+  return snapshot.exists() ? snapshot.val() as Record<string, EventLog> : {}
 }
 
 export async function initializeSelectedLevel(levelId: CompetitionLevelId) {
@@ -297,6 +543,7 @@ export async function initializeSelectedLevel(levelId: CompetitionLevelId) {
 export async function resetSelectedLevel(levelId: CompetitionLevelId) {
   const current = getFirebaseServices()
   await remove(ref(current.database, databasePathForLevel(levelId)))
+  competitionCache.delete(levelId)
   return initializeSelectedLevel(levelId)
 }
 
