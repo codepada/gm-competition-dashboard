@@ -29,6 +29,7 @@ import {
   type CompetitionData,
   type CompetitionLevelId,
   type EventLog,
+  type GroupRoundState,
 } from './data'
 
 type FirebaseServices = {
@@ -526,6 +527,69 @@ export async function saveCompetition(levelId: CompetitionLevelId, data: Competi
       : remove(ref(current.database, `${databasePath}/eventLogs`)),
   ])
   competitionCache.set(levelId, cleaned)
+}
+
+export async function saveRoundGroupChange(
+  levelId: CompetitionLevelId,
+  round: number,
+  groupId: string,
+  group: GroupRoundState,
+  logKey: string,
+  log: EventLog,
+) {
+  const current = getFirebaseServices()
+  const databasePath = databasePathForLevel(levelId)
+  const cleanedGroup = cleanUndefined(group)
+  const cleanedLog = cleanUndefined(log)
+  await Promise.all([
+    set(ref(current.database, `${databasePath}/rounds/round-${round}/groups/${groupId}`), cleanedGroup),
+    set(ref(current.database, `${databasePath}/eventLogs/${logKey}`), cleanedLog),
+  ])
+  updateCompetitionCache(levelId, (currentData) => currentData ? {
+    ...currentData,
+    rounds: {
+      ...currentData.rounds,
+      [`round-${round}`]: {
+        ...currentData.rounds[`round-${round}`],
+        groups: {
+          ...currentData.rounds[`round-${round}`].groups,
+          [groupId]: cleanedGroup,
+        },
+      },
+    },
+    eventLogs: {
+      ...currentData.eventLogs,
+      [logKey]: cleanedLog,
+    },
+  } : currentData)
+}
+
+export async function saveRoundChange(
+  levelId: CompetitionLevelId,
+  round: number,
+  roundState: CompetitionData['rounds'][string],
+  logKey: string,
+  log: EventLog,
+) {
+  const current = getFirebaseServices()
+  const databasePath = databasePathForLevel(levelId)
+  const cleanedRound = cleanUndefined(roundState)
+  const cleanedLog = cleanUndefined(log)
+  await Promise.all([
+    set(ref(current.database, `${databasePath}/rounds/round-${round}`), cleanedRound),
+    set(ref(current.database, `${databasePath}/eventLogs/${logKey}`), cleanedLog),
+  ])
+  updateCompetitionCache(levelId, (currentData) => currentData ? {
+    ...currentData,
+    rounds: {
+      ...currentData.rounds,
+      [`round-${round}`]: cleanedRound,
+    },
+    eventLogs: {
+      ...currentData.eventLogs,
+      [logKey]: cleanedLog,
+    },
+  } : currentData)
 }
 
 export async function loadEventLogs(levelId: CompetitionLevelId) {

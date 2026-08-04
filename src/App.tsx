@@ -29,6 +29,8 @@ import {
   firebaseIsConfigured,
   resetSelectedLevel,
   saveCompetition,
+  saveRoundChange,
+  saveRoundGroupChange,
   signInStaff,
   signOutStaff,
   subscribeCompetition,
@@ -286,11 +288,19 @@ function makeLog(
 }
 
 function addLog(data: CompetitionData, log: EventLog) {
+  return addLogWithKey(data, createLogKey(), log)
+}
+
+function createLogKey() {
+  return `log-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function addLogWithKey(data: CompetitionData, logKey: string, log: EventLog) {
   return {
     ...data,
     eventLogs: {
       ...data.eventLogs,
-      [`log-${Date.now()}-${Math.random().toString(16).slice(2)}`]: withServerTimestamp(log),
+      [logKey]: withServerTimestamp(log),
     },
   }
 }
@@ -666,7 +676,41 @@ function App() {
     void persist(mutator(data), message)
   }
 
-  async function persistLevel(levelId: CompetitionLevelId, nextData: CompetitionData, message = 'Saved') {
+  async function persistAction(
+    nextData: CompetitionData,
+    message: string,
+    writer: () => Promise<void>,
+  ) {
+    setData(nextData)
+    setLevelHasData(true)
+    writeCachedCompetition(selectedLevel, nextData)
+    setSummaryData((current) => ({
+      ...current,
+      [selectedLevel]: nextData,
+    }))
+
+    if (!online || !firebaseIsConfigured()) {
+      queueCompetition(selectedLevel, nextData)
+      setSaveMessage(firebaseIsConfigured() ? 'Offline: action queued' : 'Saved locally: Firebase env missing')
+      return
+    }
+
+    try {
+      await writer()
+      clearQueue(selectedLevel)
+      setSaveMessage(message)
+    } catch {
+      queueCompetition(selectedLevel, nextData)
+      setSaveMessage('Save failed: action queued')
+    }
+  }
+
+  async function persistLevelAction(
+    levelId: CompetitionLevelId,
+    nextData: CompetitionData,
+    message: string,
+    writer: () => Promise<void>,
+  ) {
     writeCachedCompetition(levelId, nextData)
     setSummaryData((current) => ({
       ...current,
@@ -684,7 +728,7 @@ function App() {
     }
 
     try {
-      await saveCompetition(levelId, nextData)
+      await writer()
       clearQueue(levelId)
       setSaveMessage(message)
     } catch {
@@ -706,7 +750,9 @@ function App() {
       issueAt: undefined,
       updatedAt: nowIso(),
     }
-    const nextData = addLog({
+    const logKey = createLogKey()
+    const log = withServerTimestamp(makeLog('CLEAR_ISSUE', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
+    const nextData = addLogWithKey({
       ...currentData,
       rounds: {
         ...currentData.rounds,
@@ -718,9 +764,14 @@ function App() {
           },
         },
       },
-    }, makeLog('CLEAR_ISSUE', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
+    }, logKey, log)
 
-    void persistLevel(levelId, nextData, 'Issue cleared')
+    void persistLevelAction(
+      levelId,
+      nextData,
+      'Issue cleared',
+      () => saveRoundGroupChange(levelId, round, groupId, nextGroup, logKey, log),
+    )
   }
 
   const teams = useMemo(() => teamsFromRecord(data.teams), [data.teams])
@@ -869,33 +920,39 @@ function App() {
     if (!roundState) return
     if (roundState.groups[groupId]?.configured === false) return
     const completedGroup = roundState.groups[groupId]
-    updateData((current) => {
-      const roundKey = `round-${round}`
-      const group = current.rounds[roundKey].groups[groupId]
-      if (group.completed) return current
-      const nextGroup = {
-        ...group,
-        status: 'COMPLETED' as const,
-        completed: true,
-        completedAt: nowIso(),
-        completedBy: staffName,
-        updatedAt: nowIso(),
-      }
-      const next = {
-        ...current,
-        rounds: {
-          ...current.rounds,
-          [roundKey]: {
-            ...current.rounds[roundKey],
-            groups: {
-              ...current.rounds[roundKey].groups,
-              [groupId]: nextGroup,
-            },
+    const roundKey = `round-${round}`
+    const group = data.rounds[roundKey].groups[groupId]
+    if (group.completed) return
+    const timestamp = nowIso()
+    const nextGroup = {
+      ...group,
+      status: 'COMPLETED' as const,
+      completed: true,
+      completedAt: timestamp,
+      completedBy: staffName,
+      updatedAt: timestamp,
+    }
+    const next = {
+      ...data,
+      rounds: {
+        ...data.rounds,
+        [roundKey]: {
+          ...data.rounds[roundKey],
+          groups: {
+            ...data.rounds[roundKey].groups,
+            [groupId]: nextGroup,
           },
         },
-      }
-      return addLog(next, makeLog('COMPLETE', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
-    }, 'Completion saved')
+      },
+    }
+    const logKey = createLogKey()
+    const log = withServerTimestamp(makeLog('COMPLETE', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
+    const nextData = addLogWithKey(next, logKey, log)
+    void persistAction(
+      nextData,
+      'Completion saved',
+      () => saveRoundGroupChange(selectedLevel, round, groupId, nextGroup, logKey, log),
+    )
     if (isStaff) {
       const nextRound = roundForGroupRunOrder(
         data,
@@ -917,32 +974,37 @@ function App() {
     if (!roundState) return
     if (roundState.groups[groupId]?.configured === false) return
     if (!window.confirm('Clear this completion status?')) return
-    updateData((current) => {
-      const roundKey = `round-${round}`
-      const group = current.rounds[roundKey].groups[groupId]
-      const nextGroup = {
-        ...group,
-        status: 'WAITING' as const,
-        completed: false,
-        completedAt: undefined,
-        completedBy: undefined,
-        updatedAt: nowIso(),
-      }
-      const next = {
-        ...current,
-        rounds: {
-          ...current.rounds,
-          [roundKey]: {
-            ...current.rounds[roundKey],
-            groups: {
-              ...current.rounds[roundKey].groups,
-              [groupId]: nextGroup,
-            },
+    const roundKey = `round-${round}`
+    const group = data.rounds[roundKey].groups[groupId]
+    const nextGroup = {
+      ...group,
+      status: 'WAITING' as const,
+      completed: false,
+      completedAt: undefined,
+      completedBy: undefined,
+      updatedAt: nowIso(),
+    }
+    const next = {
+      ...data,
+      rounds: {
+        ...data.rounds,
+        [roundKey]: {
+          ...data.rounds[roundKey],
+          groups: {
+            ...data.rounds[roundKey].groups,
+            [groupId]: nextGroup,
           },
         },
-      }
-      return addLog(next, makeLog('UNDO', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
-    }, 'Completion cleared')
+      },
+    }
+    const logKey = createLogKey()
+    const log = withServerTimestamp(makeLog('UNDO', round, groupId, staffName, nextGroup, undefined, group, nextGroup))
+    const nextData = addLogWithKey(next, logKey, log)
+    void persistAction(
+      nextData,
+      'Completion cleared',
+      () => saveRoundGroupChange(selectedLevel, round, groupId, nextGroup, logKey, log),
+    )
   }
 
   function handleIssue(groupId: string, round: number) {
@@ -950,32 +1012,38 @@ function App() {
     const roundState = data.rounds[`round-${round}`]
     if (!roundState) return
     if (roundState.groups[groupId]?.configured === false) return
-    updateData((current) => {
-      const roundKey = `round-${round}`
-      const group = current.rounds[roundKey].groups[groupId]
-      const issueNote = 'Help requested'
-      const nextGroup = {
-        ...group,
-        status: 'ISSUE' as const,
-        issueNote,
-        issueAt: nowIso(),
-        updatedAt: nowIso(),
-      }
-      const next = {
-        ...current,
-        rounds: {
-          ...current.rounds,
-          [roundKey]: {
-            ...current.rounds[roundKey],
-            groups: {
-              ...current.rounds[roundKey].groups,
-              [groupId]: nextGroup,
-            },
+    const roundKey = `round-${round}`
+    const group = data.rounds[roundKey].groups[groupId]
+    const issueNote = 'Help requested'
+    const timestamp = nowIso()
+    const nextGroup = {
+      ...group,
+      status: 'ISSUE' as const,
+      issueNote,
+      issueAt: timestamp,
+      updatedAt: timestamp,
+    }
+    const next = {
+      ...data,
+      rounds: {
+        ...data.rounds,
+        [roundKey]: {
+          ...data.rounds[roundKey],
+          groups: {
+            ...data.rounds[roundKey].groups,
+            [groupId]: nextGroup,
           },
         },
-      }
-      return addLog(next, makeLog('ISSUE', round, groupId, staffName, nextGroup, issueNote, group, nextGroup))
-    }, 'Issue saved')
+      },
+    }
+    const logKey = createLogKey()
+    const log = withServerTimestamp(makeLog('ISSUE', round, groupId, staffName, nextGroup, issueNote, group, nextGroup))
+    const nextData = addLogWithKey(next, logKey, log)
+    void persistAction(
+      nextData,
+      'Issue saved',
+      () => saveRoundGroupChange(selectedLevel, round, groupId, nextGroup, logKey, log),
+    )
   }
 
   function changeRound(round: number) {
@@ -1004,35 +1072,41 @@ function App() {
   function resetCurrentRound() {
     if (!canSetup) return
     if (!window.confirm('Reset all four judging statuses for this round?')) return
-    updateData((current) => {
-      const roundKey = `round-${currentRound}`
-      const resetGroups = Object.fromEntries(
-        Object.entries(current.rounds[roundKey].groups).map(([groupId, group]) => [
-          groupId,
-          {
-            ...group,
-            teamId: group.teamId,
-            status: 'WAITING',
-            completed: false,
-            completedAt: undefined,
-            completedBy: undefined,
-            issueNote: undefined,
-            updatedAt: nowIso(),
-          },
-        ]),
-      ) as Record<string, GroupRoundState>
-      const next = {
-        ...current,
-        rounds: {
-          ...current.rounds,
-          [roundKey]: {
-            ...current.rounds[roundKey],
-            groups: resetGroups,
-          },
+    const roundKey = `round-${currentRound}`
+    const resetGroups = Object.fromEntries(
+      Object.entries(data.rounds[roundKey].groups).map(([groupId, group]) => [
+        groupId,
+        {
+          ...group,
+          teamId: group.teamId,
+          status: 'WAITING',
+          completed: false,
+          completedAt: undefined,
+          completedBy: undefined,
+          issueNote: undefined,
+          updatedAt: nowIso(),
         },
-      }
-      return addLog(next, makeLog('RESET_ROUND', current.settings.currentRound, 'all', staffName))
-    }, 'Current round reset')
+      ]),
+    ) as Record<string, GroupRoundState>
+    const nextRound = {
+      ...data.rounds[roundKey],
+      groups: resetGroups,
+    }
+    const next = {
+      ...data,
+      rounds: {
+        ...data.rounds,
+        [roundKey]: nextRound,
+      },
+    }
+    const logKey = createLogKey()
+    const log = withServerTimestamp(makeLog('RESET_ROUND', data.settings.currentRound, 'all', staffName))
+    const nextData = addLogWithKey(next, logKey, log)
+    void persistAction(
+      nextData,
+      'Current round reset',
+      () => saveRoundChange(selectedLevel, currentRound, nextRound, logKey, log),
+    )
   }
 
   function exportTeamsCsv() {
