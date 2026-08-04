@@ -38,7 +38,7 @@ const selectedLevelKey = 'gm-advanced-selected-level'
 const sessionKey = 'gm-advanced-session'
 
 type Route = '/dashboard' | '/summary' | '/setup'
-type UserRole = 'admin' | 'adminLevel' | 'staff'
+type UserRole = 'admin' | 'adminLevel' | 'staffLead' | 'staff'
 type AppSession = {
   username: string
   role: UserRole
@@ -56,6 +56,7 @@ type IssueTarget = {
 
 const accounts: Record<string, { password: string; role: UserRole; levelId?: CompetitionLevelId; groupId?: string; staffName: string }> = {
   wgm2026: { password: '1122', role: 'admin', staffName: 'Admin' },
+  adminf: { password: '1234', role: 'staffLead', staffName: 'Head Staff' },
   adminel: { password: '1234', role: 'adminLevel', levelId: 'elementary-school', staffName: 'Elementary Admin' },
   adminjr: { password: '1234', role: 'adminLevel', levelId: 'junior-high-school', staffName: 'Junior Admin' },
   adminsh: { password: '1234', role: 'adminLevel', levelId: 'senior-high-school', staffName: 'Senior Admin' },
@@ -455,9 +456,12 @@ function App() {
     return Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, initialRound]))
   })
   const isSuperAdmin = session?.role === 'admin'
-  const isAdmin = session?.role === 'admin' || session?.role === 'adminLevel'
+  const isStaffLead = session?.role === 'staffLead'
+  const isAdmin = session?.role === 'admin' || session?.role === 'adminLevel' || isStaffLead
   const isStaff = session?.role === 'staff'
   const canSetup = isSuperAdmin
+  const canSelectLevel = isSuperAdmin || isStaffLead
+  const canClearTests = isSuperAdmin || isStaffLead
   const visibleGroupIds = useMemo(() => {
     if (session?.role === 'staff' && session.groupId) return [session.groupId]
     return [...judgeGroupIds]
@@ -761,7 +765,7 @@ function App() {
   }
 
   function changeLevel(levelId: CompetitionLevelId) {
-    if (session?.levelId) return
+    if (!canSelectLevel && session?.levelId) return
     localStorage.setItem(selectedLevelKey, levelId)
     setSelectedLevel(levelId)
     setGroupRounds(Object.fromEntries(judgeGroupIds.map((groupId) => [groupId, 1])))
@@ -828,6 +832,7 @@ function App() {
   }
 
   function clearEvaluationResults() {
+    if (!canClearTests) return
     const message = `Clear test results for ${getLevelLabel(selectedLevel)}? Teams, schedule, and settings will stay the same.`
     if (!window.confirm(message)) return
 
@@ -863,6 +868,7 @@ function App() {
         ]),
       ),
     }), 'Test results cleared')
+    setMenuOpen(false)
   }
 
   function handleComplete(groupId: string, round: number) {
@@ -1205,7 +1211,7 @@ function App() {
 
   const effectiveRoute = !isAdmin && route !== '/dashboard' ? '/dashboard' : route
   const headerTitle = effectiveRoute === '/summary' ? 'GM Advanced' : displayCompetitionTitle(data, selectedLevel)
-  const headerMode = isSuperAdmin ? 'Admin Control' : isAdmin ? 'Level Admin Control' : 'Judge Staff Control'
+  const headerMode = isSuperAdmin ? 'Admin Control' : isStaffLead ? 'Head Staff Control' : isAdmin ? 'Level Admin Control' : 'Judge Staff Control'
 
   return (
     <main className="app-shell">
@@ -1242,7 +1248,7 @@ function App() {
       {isAdmin && menuOpen ? (
         <div className="admin-menu-layer" role="presentation" onClick={() => setMenuOpen(false)}>
           <div className="top-actions admin-menu" role="menu" onClick={(event) => event.stopPropagation()}>
-            {isSuperAdmin ? (
+            {canSelectLevel ? (
               <label className="level-select">
                 Level
                 <select value={selectedLevel} onChange={(event) => changeLevel(event.target.value as CompetitionLevelId)}>
@@ -1256,6 +1262,9 @@ function App() {
             <button className={effectiveRoute === '/summary' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/summary')}>Summary</button>
             {canSetup ? (
               <button className={effectiveRoute === '/setup' ? 'tab active' : 'tab'} type="button" onClick={() => goTo('/setup')}>Setup</button>
+            ) : null}
+            {canClearTests ? (
+              <button className="danger" type="button" onClick={clearEvaluationResults}>Clear Test Results</button>
             ) : null}
             <button
               className="ghost utility-item"
